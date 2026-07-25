@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server'
 import { importExtractionJob } from '@/lib/db/importJob'
+import { requireAdmin } from '@/lib/supabase/requireAdmin'
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
+  const authorized = await requireAdmin(request)
+  if (!authorized.authorized) return authorized.response
+
   const { jobId } = await params
   try {
     const result = await importExtractionJob(jobId)

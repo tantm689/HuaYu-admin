@@ -12,6 +12,10 @@ const eqMock = vi.fn().mockReturnValue({
 })
 const updateMock = vi.fn().mockReturnValue({ eq: eqMock })
 
+vi.mock('@/lib/supabase/requireAdmin', () => ({
+  requireAdmin: vi.fn().mockResolvedValue({ authorized: true }),
+}))
+
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabase: () => ({
     from: () => ({ insert: insertMock, update: updateMock }),

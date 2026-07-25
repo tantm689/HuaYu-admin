@@ -7,6 +7,10 @@ const { singleJobMock, downloadMock, updateMock, extractMock } = vi.hoisted(() =
   extractMock: vi.fn(),
 }))
 
+vi.mock('@/lib/supabase/requireAdmin', () => ({
+  requireAdmin: vi.fn().mockResolvedValue({ authorized: true }),
+}))
+
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabase: () => ({
     from: (table: string) => {

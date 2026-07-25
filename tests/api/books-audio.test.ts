@@ -8,6 +8,10 @@ const uploadMock = vi.fn().mockResolvedValue({ data: { path: 'dialogues/d1.mp3' 
 const getPublicUrlMock = vi.fn().mockReturnValue({ data: { publicUrl: 'https://x/d1.mp3' } })
 const updateEqMock = vi.fn().mockResolvedValue({ error: null })
 
+vi.mock('@/lib/supabase/requireAdmin', () => ({
+  requireAdmin: vi.fn().mockResolvedValue({ authorized: true }),
+}))
+
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabase: () => ({
     from: (table: string) => {

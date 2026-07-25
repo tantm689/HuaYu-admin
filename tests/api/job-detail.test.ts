@@ -4,6 +4,10 @@ const singleMock = vi.fn().mockResolvedValue({ data: { id: 'job-1', status: 'pen
 const eqUpdateMock = vi.fn().mockResolvedValue({ error: null })
 const updateMock = vi.fn().mockReturnValue({ eq: eqUpdateMock })
 
+vi.mock('@/lib/supabase/requireAdmin', () => ({
+  requireAdmin: vi.fn().mockResolvedValue({ authorized: true }),
+}))
+
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabase: () => ({
     from: () => ({

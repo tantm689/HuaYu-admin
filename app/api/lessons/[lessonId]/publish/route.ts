@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/supabase/requireAdmin'
 import type { LessonStatus } from '@/lib/db/types'
 
 const ALLOWED_TRANSITIONS: Record<LessonStatus, LessonStatus[]> = {
@@ -12,6 +13,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ lessonId: string }> }
 ) {
+  const authorized = await requireAdmin(request)
+  if (!authorized.authorized) return authorized.response
+
   const { lessonId } = await params
   const { status: nextStatus } = (await request.json()) as { status: LessonStatus }
   const supabase = createServerSupabase()

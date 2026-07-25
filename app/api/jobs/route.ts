@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/supabase/requireAdmin'
 
 export async function POST(request: Request) {
+  const authorized = await requireAdmin(request)
+  if (!authorized.authorized) return authorized.response
+
   const form = await request.formData()
   const bookId = form.get('bookId')
   const lessonNoRaw = form.get('lessonNo')

@@ -3,6 +3,10 @@ import { describe, it, expect, vi } from 'vitest'
 const singleMock = vi.fn()
 const createSignedUrlMock = vi.fn()
 
+vi.mock('@/lib/supabase/requireAdmin', () => ({
+  requireAdmin: vi.fn().mockResolvedValue({ authorized: true }),
+}))
+
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabase: () => ({
     from: () => ({ select: () => ({ eq: () => ({ single: singleMock }) }) }),

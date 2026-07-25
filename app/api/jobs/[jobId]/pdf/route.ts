@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/supabase/requireAdmin'
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
+  const authorized = await requireAdmin(request)
+  if (!authorized.authorized) return authorized.response
+
   const { jobId } = await params
   const supabase = createServerSupabase()
   const { data: job, error: jobError } = await supabase

@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { extractLessonFromPdf } from '@/lib/gemini/extract'
+import { requireAdmin } from '@/lib/supabase/requireAdmin'
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
+  const authorized = await requireAdmin(request)
+  if (!authorized.authorized) return authorized.response
+
   const { jobId } = await params
   const supabase = createServerSupabase()
 

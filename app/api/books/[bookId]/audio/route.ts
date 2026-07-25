@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { matchFilesToDialogues } from '@/lib/audio/matchDialogueAudio'
+import { requireAdmin } from '@/lib/supabase/requireAdmin'
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ bookId: string }> }
 ) {
+  const authorized = await requireAdmin(request)
+  if (!authorized.authorized) return authorized.response
+
   const { bookId } = await params
   const form = await request.formData()
   const files = form.getAll('files') as File[]
