@@ -1,11 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
 
-const { singleJobMock, singleBookMock, downloadMock, updateMock, sliceMock, extractMock } = vi.hoisted(() => ({
+const { singleJobMock, downloadMock, updateMock, extractMock } = vi.hoisted(() => ({
   singleJobMock: vi.fn(),
-  singleBookMock: vi.fn(),
   downloadMock: vi.fn(),
   updateMock: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
-  sliceMock: vi.fn().mockResolvedValue(new Uint8Array([9, 9])),
   extractMock: vi.fn(),
 }))
 
@@ -18,25 +16,22 @@ vi.mock('@/lib/supabase/server', () => ({
           update: updateMock,
         }
       }
-      if (table === 'books') {
-        return { select: () => ({ eq: () => ({ single: singleBookMock }) }) }
-      }
       throw new Error(`unexpected table ${table}`)
     },
     storage: { from: () => ({ download: downloadMock }) },
   }),
 }))
 
-vi.mock('@/lib/pdf/slice', () => ({ sliceBookPdf: sliceMock }))
-
 vi.mock('@/lib/gemini/extract', () => ({ extractLessonFromPdf: extractMock }))
 
 import { POST } from '@/app/api/jobs/[jobId]/run/route'
 
 describe('POST /api/jobs/[jobId]/run', () => {
-  it('slices, extracts, and marks the job pending with raw_json on success', async () => {
-    singleJobMock.mockResolvedValue({ data: { id: 'job-1', book_id: 'book-1', lesson_no: 1, page_start: 27, page_end: 45 }, error: null })
-    singleBookMock.mockResolvedValue({ data: { pdf_path: 'books/x.pdf' }, error: null })
+  it('downloads the sliced pdf, extracts, and marks the job pending with raw_json on success', async () => {
+    singleJobMock.mockResolvedValue({
+      data: { id: 'job-1', book_id: 'book-1', lesson_no: 1, page_start: 27, page_end: 45, sliced_pdf_path: 'jobs/job-1.pdf' },
+      error: null,
+    })
     downloadMock.mockResolvedValue({ data: { arrayBuffer: () => Promise.resolve(new ArrayBuffer(4)) }, error: null })
     extractMock.mockResolvedValue({ lesson: { lessonNo: 1 }, dialogues: [], vocabulary: [], grammarPoints: [] })
 
@@ -44,14 +39,17 @@ describe('POST /api/jobs/[jobId]/run', () => {
     const res = await POST(req as any, { params: Promise.resolve({ jobId: 'job-1' }) })
 
     expect(res.status).toBe(200)
+    expect(downloadMock).toHaveBeenCalledWith('jobs/job-1.pdf')
     expect(updateMock).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'pending', error_message: null })
     )
   })
 
   it('marks the job failed with an error message when extraction throws', async () => {
-    singleJobMock.mockResolvedValue({ data: { id: 'job-1', book_id: 'book-1', lesson_no: 1, page_start: 27, page_end: 45 }, error: null })
-    singleBookMock.mockResolvedValue({ data: { pdf_path: 'books/x.pdf' }, error: null })
+    singleJobMock.mockResolvedValue({
+      data: { id: 'job-1', book_id: 'book-1', lesson_no: 1, page_start: 27, page_end: 45, sliced_pdf_path: 'jobs/job-1.pdf' },
+      error: null,
+    })
     downloadMock.mockResolvedValue({ data: { arrayBuffer: () => Promise.resolve(new ArrayBuffer(4)) }, error: null })
     extractMock.mockRejectedValue(new Error('Gemini timeout'))
 

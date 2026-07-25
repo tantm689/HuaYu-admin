@@ -106,8 +106,10 @@ export default function JobReviewPage({ params }: Props) {
     loadJob()
   }, [loadJob])
 
-  // Render the book's PDF pages for this job's page range, reusing the
-  // client-side pdfjs-dist approach from the page-range picker.
+  // Render every page of this job's own sliced PDF, reusing the client-side
+  // pdfjs-dist approach from the page-range picker. The sliced file already
+  // contains only the selected pages, so no page_start/page_end offset math
+  // is needed here.
   useEffect(() => {
     if (!job) return
     let cancelled = false
@@ -116,7 +118,7 @@ export default function JobReviewPage({ params }: Props) {
 
     async function run() {
       try {
-        const res = await fetch(`/api/books/${bookId}/pages`)
+        const res = await fetch(`/api/jobs/${jobId}/pdf`)
         if (!res.ok) {
           const body = await res.json().catch(() => ({}))
           throw new Error(body.error ?? "Không tải được PDF.")
@@ -128,19 +130,17 @@ export default function JobReviewPage({ params }: Props) {
 
         loadingTask = pdfjsLib.getDocument({ url: signedUrl })
         doc = await loadingTask.promise
-        if (cancelled || !doc || !job) return
+        if (cancelled || !doc) return
 
-        const start = job.page_start
-        const end = job.page_end
-        const count = end - start + 1
+        const count = doc.numPages
         canvasRefs.current = new Array(count).fill(null)
         setNumPagesRendered(count)
 
-        for (let page = start; page <= end; page++) {
+        for (let page = 1; page <= count; page++) {
           if (cancelled) return
           const pdfPage = await doc.getPage(page)
           const viewport = pdfPage.getViewport({ scale: 1.3 })
-          const canvas = canvasRefs.current[page - start]
+          const canvas = canvasRefs.current[page - 1]
           if (!canvas) continue
           canvas.width = viewport.width
           canvas.height = viewport.height
@@ -164,7 +164,7 @@ export default function JobReviewPage({ params }: Props) {
       cancelled = true
       loadingTask?.destroy()
     }
-  }, [bookId, job])
+  }, [jobId, job])
 
   async function handleRetry() {
     setIsRetrying(true)
@@ -467,7 +467,7 @@ export default function JobReviewPage({ params }: Props) {
                   }}
                   className="w-full rounded border border-border bg-white shadow-sm"
                 />
-                <span className="text-xs text-muted-foreground">Trang {job.page_start + idx}</span>
+                <span className="text-xs text-muted-foreground">Trang {idx + 1}</span>
               </div>
             ))}
           </div>
