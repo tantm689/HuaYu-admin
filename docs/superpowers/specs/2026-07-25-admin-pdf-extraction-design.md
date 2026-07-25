@@ -53,7 +53,7 @@ Chỉ extract 3 phần, phục vụ đúng nhu cầu ôn tập (flashcard, viế
 ## Data model (Postgres/Supabase)
 
 ```
-books             (id, title, volume, created_at)
+books             (id, title, volume, created_at)  -- không còn pdf_path, không lưu bản gốc
 lessons           (id, book_id, lesson_no, title_zh, title_vi, theme,
                     objectives text[], status: draft|reviewed|published)
 dialogues         (id, lesson_id, order, title_zh, title_vi, audio_code, audio_url)
@@ -63,7 +63,7 @@ vocabulary        (id, lesson_id, order, category, word_zh, pinyin,
                     zhuyin, meaning_vi, audio_url)
 grammar_points    (id, lesson_id, order, title_zh, title_vi, structure_note)
 grammar_examples  (id, grammar_point_id, order, text_zh, pinyin, translation_vi)
-extraction_jobs   (id, book_id, page_start, page_end,
+extraction_jobs   (id, book_id, page_start, page_end, sliced_pdf_path,
                     status: pending|reviewed|imported|failed,
                     raw_json jsonb, error_message, created_at)
 ```
@@ -72,10 +72,12 @@ extraction_jobs   (id, book_id, page_start, page_end,
 
 ## Luồng xử lý
 
-1. **Upload sách**: Admin upload PDF gốc 1 lần → lưu Supabase Storage, tạo record `books`.
-2. **Tạo extraction job**: Admin xem preview thumbnail các trang, chọn khoảng trang (vd 27-45) + gán `lesson_no` → tạo `extraction_jobs` với `status = pending`.
-3. **Extract**: Server action dùng `pdf-lib` cắt đúng khoảng trang → gửi Gemini 3.5 Flash Lite (structured output/responseSchema JSON) với prompt mô tả rõ phạm vi cần lấy (lesson, dialogues, vocabulary **chỉ từ mục Từ vựng chính thức**, grammar **chỉ phần giải thích + ví dụ, không lấy bài tập**) → validate bằng Zod → lưu `raw_json`.
-4. **Review UI**: 2 cột — trái là ảnh trang PDF gốc (render để đối chiếu), phải là form editable hiển thị dữ liệu đã extract; admin sửa trực tiếp nếu AI đọc sai.
+> **Lưu ý hạ tầng (cập nhật 2026-07-25):** Supabase free tier giới hạn cứng 50MB/file, không nâng được. File sách gốc (vd 339MB) không thể upload nguyên cuốn lên Storage. Vì vậy **không lưu bản PDF gốc của cả cuốn sách lên Supabase** — chỉ cắt trang phía client và lưu file PDF nhỏ (đã cắt) cho từng bài học.
+
+1. **Tạo book**: Admin chỉ nhập metadata (title, volume) — không upload file PDF ở bước này. `books` không còn cột `pdf_path`.
+2. **Tạo extraction job**: Admin chọn file PDF gốc **từ máy tính** (input file, không upload lên server) ở màn "Tạo bài học mới". Trình duyệt dùng `pdfjs-dist` đọc trực tiếp file local để hiển thị thumbnail từng trang, admin chọn khoảng trang (vd 27-45) + nhập `lesson_no`. Khi xác nhận, trình duyệt dùng `pdf-lib` (chạy được trong browser) **cắt ngay tại chỗ** đúng khoảng trang đó thành 1 file PDF nhỏ, rồi upload file nhỏ này (không phải bản gốc) lên Supabase Storage, lưu đường dẫn vào `extraction_jobs.sliced_pdf_path` → tạo `extraction_jobs` với `status = pending`.
+3. **Extract**: Server action tải file PDF nhỏ đã cắt (từ `sliced_pdf_path`) → gửi thẳng cho Gemini 3.5 Flash Lite (structured output/responseSchema JSON) với prompt mô tả rõ phạm vi cần lấy (lesson, dialogues, vocabulary **chỉ từ mục Từ vựng chính thức**, grammar **chỉ phần giải thích + ví dụ, không lấy bài tập**) → validate bằng Zod → lưu `raw_json`. Không còn bước cắt PDF phía server nữa (đã cắt ở bước 2).
+4. **Review UI**: 2 cột — trái là ảnh các trang từ chính file PDF nhỏ đã cắt của job đó (render bằng `pdfjs-dist`, không cần tải lại từ bản gốc), phải là form editable hiển thị dữ liệu đã extract; admin sửa trực tiếp nếu AI đọc sai. Nút "Thử lại" dùng lại `sliced_pdf_path` đã lưu, không cần chọn lại file.
 5. **Import**: Admin bấm "Import vào DB" → transaction ghi vào `lessons`/`dialogues`/`vocabulary`/`grammar_points`/... → với mỗi từ vựng, gọi edge-tts sinh audio và upload lên Supabase Storage, lưu `vocabulary.audio_url` (chạy song song/hàng đợi, không chặn UI import) → `extraction_jobs.status = imported`, bài học tạo ở `status = draft`.
 6. **Gắn audio bài khoá**: Admin bulk-upload các file mp3 gốc (đặt tên theo mã track, vd `01-1.mp3`) vào 1 khu vực riêng → hệ thống tự khớp tên file với `dialogues.audio_code`, lưu `audio_url`; file không khớp mã nào thì báo cho admin biết để đổi tên/bỏ qua.
 7. **Publish**: Admin duyệt lại trong danh sách bài học, chuyển `draft → published` khi sẵn sàng cho repo User đọc.

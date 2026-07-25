@@ -2199,6 +2199,41 @@ If Gemini consistently misreads specific fields (e.g. zhuyin columns), note it �
 
 ---
 
+---
+
+## Task 15: Rework upload flow for client-side PDF slicing (Supabase free-tier 50MB limit)
+
+**Discovered during Task 14 manual verification:** Supabase's Free plan has a hard, non-negotiable 50MB per-file Storage limit (confirmed in the dashboard: Free = 50MB, Pro/Team = 500GB, no way to raise it on Free). The real textbook PDF is 339MB. The original design (Task 6: upload the whole book once to Storage, Task 8: download it server-side and slice per job) cannot work on this project's infrastructure. This task reworks the flow so the full book PDF is **never stored in Supabase at all** — only small, already-sliced per-lesson PDFs (a `pdf-lib` slice is done client-side, in the browser, before upload).
+
+**New flow:**
+1. "Tạo book" only collects `title`/`volume` metadata — no PDF upload, no Storage write. `books` no longer has a `pdf_path` column.
+2. On the "Tạo bài học mới" page, the admin picks the book's PDF **from their own computer** via a plain `<input type="file">` — it is never uploaded anywhere at this point. The browser reads it into an `ArrayBuffer` and renders page thumbnails directly from those local bytes with `pdfjs-dist` (`getDocument({ data: arrayBuffer })` — no signed URL, no server round-trip for thumbnails).
+3. When the admin confirms a page range + lesson number, the browser slices out exactly those pages **client-side**, in-browser, using the same `sliceBookPdf` function from `lib/pdf/slice.ts` (Task 4) — it's plain `pdf-lib`, which runs fine in a browser bundle, no changes needed to that function itself. The resulting small PDF (a handful of MB, safely under 50MB) is uploaded as part of the `POST /api/jobs` request; the full original file never leaves the browser.
+4. `extraction_jobs` gains a `sliced_pdf_path` column pointing at this small per-job file in the `book-pdfs` Storage bucket. The extraction runner (Task 8's route) now just downloads this small file directly and sends it to Gemini — it no longer downloads a book PDF or calls `sliceBookPdf` itself (slicing already happened client-side).
+5. The review UI (Task 9) renders PDF pages from the job's own `sliced_pdf_path` (via a new signed-URL endpoint scoped to the job) instead of from a book-level PDF — since the sliced file already contains only the selected pages, no `page_start`/`page_end` offset math is needed when rendering it; render every page of the sliced file.
+
+**Files:**
+- Create: `supabase/migrations/0002_client_side_slicing.sql` — `alter table books drop column pdf_path;` and `alter table extraction_jobs add column sliced_pdf_path text;` (nullable — the app always sets it when creating a job, but Postgres doesn't need a default since these are new/adding-only changes to a table that may already have rows from earlier manual testing).
+- Modify: `lib/db/types.ts` — remove `Book.pdf_path`, add `ExtractionJob.sliced_pdf_path: string | null`.
+- Modify: `app/api/books/route.ts` — accept a plain JSON body `{ title, volume }` (or a `FormData` without a `file` field — implementer's choice, but no Storage upload happens here anymore), insert into `books` without `pdf_path`.
+- Modify: `app/(protected)/books/new/page.tsx` — remove the file input entirely; just `title`/`volume` fields.
+- Delete: `app/api/books/[bookId]/pages/route.ts` — no longer needed (there is no book-level stored PDF to sign a URL for).
+- Create: `app/api/jobs/[jobId]/pdf/route.ts` — `GET`, returns `{ signedUrl }` for `extraction_jobs.sliced_pdf_path` (404 if the job or its `sliced_pdf_path` doesn't exist yet), mirroring the shape of the old `books/[bookId]/pages` route but scoped to a job. Uses Next.js 16 async `params`.
+- Modify: `app/api/jobs/route.ts` (`POST /api/jobs`) — change from a JSON-only body to `multipart/form-data` accepting `bookId`, `lessonNo`, `pageStart`, `pageEnd`, and `file` (the already-client-sliced small PDF). Insert the `extraction_jobs` row first (without `sliced_pdf_path`) to obtain its `id`, upload the file to the `book-pdfs` bucket at `jobs/${id}.pdf`, then update the row's `sliced_pdf_path` to that path, then return the final row with `status: 'pending'`. Update `tests/api/jobs.test.ts` to match the new multipart contract (still keep the `pageStart > pageEnd` validation test).
+- Modify: `app/(protected)/books/[bookId]/jobs/new/page.tsx` — replace the "fetch signed URL, load PDF from remote" logic with: local `<input type="file" accept="application/pdf">` → read to `ArrayBuffer` → `pdfjs-dist` renders thumbnails directly from those bytes (same UI/selection interaction already built in Task 7 — keep the anchor/focus range-selection state machine and visual design from that task, just change where the PDF bytes come from). On submit, call `sliceBookPdf` (import from `lib/pdf/slice.ts` — it's plain `pdf-lib`, works client-side) on the local bytes with the selected range, then `POST` the result as `multipart/form-data` to `/api/jobs` along with `bookId`/`lessonNo`/`pageStart`/`pageEnd`.
+- Modify: `app/api/jobs/[jobId]/run/route.ts` — remove the book-lookup and `sliceBookPdf` call entirely; instead download `extraction_jobs.sliced_pdf_path` directly from the `book-pdfs` bucket and pass those bytes straight to `extractLessonFromPdf(bytes, job.lesson_no)`. Update `tests/api/jobs-run.test.ts` to drop the `sliceBookPdf`/book-lookup mocks accordingly (keep the success/failure status-update assertions).
+- Modify: `app/(protected)/books/[bookId]/jobs/[jobId]/page.tsx` — left column now fetches the signed URL from the new `GET /api/jobs/[jobId]/pdf` route and renders every page of that small file (no `page_start`/`page_end` offset — the file already only contains the selected range).
+- Modify: `app/(protected)/books/[bookId]/page.tsx` — no functional change expected, but fix if it references anything from `books.pdf_path`.
+
+**Constraints carried over from earlier tasks (do not violate):**
+- Next.js 16 async route `params` pattern, consistently, in every route touched.
+- Keep using shadcn components / existing Vietnamese labels / existing visual patterns already established (this task is a plumbing change, not a redesign — no need to re-invoke `ui-ux-pro-max`, just adapt the existing page-range-picker and review-UI layouts to the new data source).
+- The live Supabase project already has the OLD schema applied (with `books.pdf_path` and no `sliced_pdf_path`) — the new migration `0002_client_side_slicing.sql` must be handed to the human operator to run in the Supabase SQL Editor the same way `0001_init.sql` was; the implementer cannot run it directly (no DB credentials/CLI access), but should still write it correctly and say so in the report.
+
+**Testing:** update/adapt every existing automated test that touches the changed files (`tests/api/books.test.ts`, `tests/api/jobs.test.ts`, `tests/api/jobs-run.test.ts`) so the full suite passes; add a test for the new `GET /api/jobs/[jobId]/pdf` route mirroring the pattern of the old `books/[bookId]/pages` route test if one existed, or a new simple one (job found → signed URL returned; job/path missing → 404). `npx tsc --noEmit` and `npm run build` must be clean at the end.
+
+---
+
 ## Self-Review Notes
 
 - **Spec coverage:** upload/storage (Task 6), page-range extraction job creation (Task 7), slicing (Task 4), Gemini extraction restricted to dialogues/official-vocab/grammar-without-exercises (Task 5), review+edit UI (Task 9), import with duplicate `lesson_no` handled by the DB's `unique (book_id, lesson_no)` constraint surfacing as a Postgres error the import route returns as a 500 with message (admin sees it and can decide to edit `lessonNo` before retrying), vocabulary TTS (Task 11) wired non-blocking into import (Task 10), dialogue audio bulk upload matched by `audio_code` (Task 12), publish workflow (Task 13), single-admin auth (Task 3), Gemini model pinned to `gemini-3.5-flash-lite` (Task 5). All covered.
