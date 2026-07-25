@@ -2253,6 +2253,26 @@ If Gemini consistently misreads specific fields (e.g. zhuyin columns), note it �
 
 ---
 
+## Task 17: Remove zhuyin (chú âm) field entirely
+
+**User request:** the zhuyin/bopomofo column is not used for anything and should be removed from the whole system — database, Gemini extraction, and every UI screen that shows it.
+
+**Scope:** `zhuyin` currently appears in: `supabase/migrations/0001_init.sql` (`vocabulary.zhuyin` column), `lib/db/types.ts` (`VocabularyEntry.zhuyin`), `lib/gemini/schema.ts` (`VocabularyEntrySchema.zhuyin` in the Zod schema, and the corresponding property + description in `GEMINI_RESPONSE_SCHEMA`), `lib/db/importJob.ts` (writes `zhuyin` into the `vocabulary` insert), `app/(protected)/books/[bookId]/jobs/[jobId]/page.tsx` (review-UI editable field for each vocab entry), `app/(protected)/lessons/[lessonId]/page.tsx` (read-only display in the published lesson view), `tests/lib/db/importJob.test.ts`, `tests/lib/gemini/schema.test.ts`.
+
+**Files:**
+- Create: `supabase/migrations/0004_remove_zhuyin.sql` — `alter table vocabulary drop column zhuyin;`. Same caveat as every prior migration: cannot be applied live from this environment (no DB CLI access), human operator must run it in the Supabase SQL Editor.
+- Modify: `lib/db/types.ts` — remove `zhuyin` from `VocabularyEntry`.
+- Modify: `lib/gemini/schema.ts` — remove `zhuyin` from `VocabularyEntrySchema` (Zod) and from `GEMINI_RESPONSE_SCHEMA`'s vocabulary item properties (including its `description`).
+- Modify: `lib/gemini/extract.ts` — if `EXTRACTION_PROMPT` mentions zhuyin/chú âm by name anywhere, remove that mention too (check the current text, added descriptions in Task 16 may reference it).
+- Modify: `lib/db/importJob.ts` — remove `zhuyin: vocab.zhuyin` (or equivalent) from the `vocabulary` insert payload.
+- Modify: `app/(protected)/books/[bookId]/jobs/[jobId]/page.tsx` — remove the zhuyin input field from the vocabulary edit form, and remove it from the local editable-state shape if one is hand-typed there.
+- Modify: `app/(protected)/lessons/[lessonId]/page.tsx` — remove the zhuyin display from the vocabulary list.
+- Update: `tests/lib/db/importJob.test.ts`, `tests/lib/gemini/schema.test.ts` — remove `zhuyin` from mock/sample data and any assertions that reference it.
+
+**Testing:** run `npx tsc --noEmit`, full `npm run test`, `npm run build`, `npm run lint` — all clean at the end. No new test is needed beyond updating the existing ones to no longer reference the removed field.
+
+---
+
 ## Self-Review Notes
 
 - **Spec coverage:** upload/storage (Task 6), page-range extraction job creation (Task 7), slicing (Task 4), Gemini extraction restricted to dialogues/official-vocab/grammar-without-exercises (Task 5), review+edit UI (Task 9), import with duplicate `lesson_no` handled by the DB's `unique (book_id, lesson_no)` constraint surfacing as a Postgres error the import route returns as a 500 with message (admin sees it and can decide to edit `lessonNo` before retrying), vocabulary TTS (Task 11) wired non-blocking into import (Task 10), dialogue audio bulk upload matched by `audio_code` (Task 12), publish workflow (Task 13), single-admin auth (Task 3), Gemini model pinned to `gemini-3.5-flash-lite` (Task 5). All covered.
