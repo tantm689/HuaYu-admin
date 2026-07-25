@@ -1,0 +1,83 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+const state: Record<string, any> = {}
+
+function makeChain(resolveValue: any) {
+  return {
+    select: () => ({ single: () => Promise.resolve({ data: resolveValue, error: null }) }),
+    eq: function () { return this },
+    single: () => Promise.resolve({ data: resolveValue, error: null }),
+  }
+}
+
+const { insertLessonMock, generateVocabAudioMock } = vi.hoisted(() => ({
+  insertLessonMock: vi.fn(),
+  generateVocabAudioMock: vi.fn().mockResolvedValue(new Uint8Array([1])),
+}))
+
+vi.mock('@/lib/tts/edgeTts', () => ({ generateVocabAudio: generateVocabAudioMock }))
+
+vi.mock('@/lib/supabase/server', () => ({
+  createServerSupabase: () => ({
+    from: (table: string) => {
+      if (table === 'lessons') {
+        return {
+          select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }) }),
+          insert: (row: any) => {
+            insertLessonMock(row)
+            return { select: () => ({ single: () => Promise.resolve({ data: { id: 'lesson-1', ...row }, error: null }) }) }
+          },
+        }
+      }
+      if (table === 'dialogues') {
+        return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'dlg-1' }, error: null }) }) }) }
+      }
+      if (table === 'dialogue_lines') {
+        return { insert: () => Promise.resolve({ error: null }) }
+      }
+      if (table === 'vocabulary') {
+        return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'vocab-1' }, error: null }) }) }), update: () => ({ eq: () => Promise.resolve({ error: null }) }) }
+      }
+      if (table === 'grammar_points') {
+        return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'gp-1' }, error: null }) }) }) }
+      }
+      if (table === 'grammar_examples') {
+        return { insert: () => Promise.resolve({ error: null }) }
+      }
+      if (table === 'extraction_jobs') {
+        return {
+          select: () => ({ eq: () => ({ single: () => Promise.resolve({
+            data: {
+              id: 'job-1', book_id: 'book-1', status: 'reviewed',
+              raw_json: {
+                lesson: { lessonNo: 1, titleZh: 'A', titleVi: 'B', theme: null, objectives: [] },
+                dialogues: [{ order: 1, titleZh: null, titleVi: null, audioCode: '01-1', lines: [{ order: 1, speakerZh: null, speakerPinyin: null, textZh: 'x', pinyin: null, translationVi: null }] }],
+                vocabulary: [{ order: 1, category: null, wordZh: '你好', pinyin: 'nǐ hǎo', zhuyin: null, meaningVi: 'xin chào' }],
+                grammarPoints: [{ order: 1, titleZh: 'G1', titleVi: null, structureNote: null, examples: [{ order: 1, textZh: 'e', pinyin: null, translationVi: null }] }],
+              },
+            },
+            error: null,
+          }) }) }),
+          update: () => ({ eq: () => Promise.resolve({ error: null }) }),
+        }
+      }
+      throw new Error(`unexpected table ${table}`)
+    },
+    storage: { from: () => ({ upload: () => Promise.resolve({ data: { path: 'audio/vocab-1.mp3' }, error: null }), getPublicUrl: () => ({ data: { publicUrl: 'https://x/vocab-1.mp3' } }) }) },
+  }),
+}))
+
+import { importExtractionJob } from '@/lib/db/importJob'
+
+describe('importExtractionJob', () => {
+  beforeEach(() => { insertLessonMock.mockClear(); generateVocabAudioMock.mockClear() })
+
+  it('writes lesson, dialogues, vocabulary (with generated audio), and grammar', async () => {
+    const result = await importExtractionJob('job-1')
+    expect(result.lessonId).toBe('lesson-1')
+    expect(insertLessonMock).toHaveBeenCalledWith(
+      expect.objectContaining({ book_id: 'book-1', lesson_no: 1, status: 'draft' })
+    )
+    expect(generateVocabAudioMock).toHaveBeenCalledWith('你好')
+  })
+})
