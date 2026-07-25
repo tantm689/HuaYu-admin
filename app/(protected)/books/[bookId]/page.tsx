@@ -80,16 +80,18 @@ export default async function BookDetailPage({ params }: Props) {
         ) : (
           <div className="flex flex-col gap-3">
             {lessonRows.map((lesson) => (
-              <Card key={lesson.id}>
-                <CardHeader>
-                  <CardTitle>
-                    Bài {lesson.lesson_no}: {lesson.title_vi || lesson.title_zh}
-                  </CardTitle>
-                  <CardDescription>
-                    {lessonStatusLabel[lesson.status]}
-                  </CardDescription>
-                </CardHeader>
-              </Card>
+              <Link key={lesson.id} href={`/lessons/${lesson.id}`}>
+                <Card className="transition-colors hover:bg-muted/50">
+                  <CardHeader>
+                    <CardTitle>
+                      Bài {lesson.lesson_no}: {lesson.title_vi || lesson.title_zh}
+                    </CardTitle>
+                    <CardDescription>
+                      {lessonStatusLabel[lesson.status]}
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              </Link>
             ))}
           </div>
         )}
