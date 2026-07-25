@@ -1,41 +1,59 @@
 import { describe, it, expect, vi } from 'vitest'
 
+const insertedJob = { id: 'job-1', book_id: 'book-1', lesson_no: 1, page_start: 27, page_end: 45, status: 'pending' }
+const updatedJob = { ...insertedJob, sliced_pdf_path: 'jobs/job-1.pdf' }
+
 const insertMock = vi.fn().mockReturnValue({
-  select: () => ({
-    single: () => Promise.resolve({
-      data: { id: 'job-1', book_id: 'book-1', lesson_no: 1, page_start: 27, page_end: 45, status: 'pending' },
-      error: null,
-    }),
-  }),
+  select: () => ({ single: () => Promise.resolve({ data: insertedJob, error: null }) }),
 })
+const uploadMock = vi.fn().mockResolvedValue({ data: { path: 'jobs/job-1.pdf' }, error: null })
+const eqMock = vi.fn().mockReturnValue({
+  select: () => ({ single: () => Promise.resolve({ data: updatedJob, error: null }) }),
+})
+const updateMock = vi.fn().mockReturnValue({ eq: eqMock })
 
 vi.mock('@/lib/supabase/server', () => ({
-  createServerSupabase: () => ({ from: () => ({ insert: insertMock }) }),
+  createServerSupabase: () => ({
+    from: () => ({ insert: insertMock, update: updateMock }),
+    storage: { from: () => ({ upload: uploadMock }) },
+  }),
 }))
 
 import { POST } from '@/app/api/jobs/route'
 
+function buildForm(fields: Record<string, string>) {
+  const form = new FormData()
+  for (const [key, value] of Object.entries(fields)) {
+    form.set(key, value)
+  }
+  form.set('file', new File([new Uint8Array([1, 2, 3])], 'lesson-1.pdf', { type: 'application/pdf' }))
+  return form
+}
+
 describe('POST /api/jobs', () => {
-  it('creates a pending extraction job', async () => {
-    const req = new Request('http://localhost/api/jobs', {
-      method: 'POST',
-      body: JSON.stringify({ bookId: 'book-1', lessonNo: 1, pageStart: 27, pageEnd: 45 }),
-    })
+  it('inserts the job, uploads the sliced pdf, and updates sliced_pdf_path', async () => {
+    const form = buildForm({ bookId: 'book-1', lessonNo: '1', pageStart: '27', pageEnd: '45' })
+    const req = new Request('http://localhost/api/jobs', { method: 'POST', body: form })
     const res = await POST(req as any)
     const json = await res.json()
 
     expect(res.status).toBe(201)
     expect(json.status).toBe('pending')
+    expect(json.sliced_pdf_path).toBe('jobs/job-1.pdf')
     expect(insertMock).toHaveBeenCalledWith(
       expect.objectContaining({ book_id: 'book-1', lesson_no: 1, page_start: 27, page_end: 45, status: 'pending' })
     )
+    expect(uploadMock).toHaveBeenCalledWith(
+      'jobs/job-1.pdf',
+      expect.anything(),
+      expect.objectContaining({ contentType: 'application/pdf' })
+    )
+    expect(updateMock).toHaveBeenCalledWith({ sliced_pdf_path: 'jobs/job-1.pdf' })
   })
 
   it('rejects when pageStart > pageEnd', async () => {
-    const req = new Request('http://localhost/api/jobs', {
-      method: 'POST',
-      body: JSON.stringify({ bookId: 'book-1', lessonNo: 1, pageStart: 45, pageEnd: 27 }),
-    })
+    const form = buildForm({ bookId: 'book-1', lessonNo: '1', pageStart: '45', pageEnd: '27' })
+    const req = new Request('http://localhost/api/jobs', { method: 'POST', body: form })
     const res = await POST(req as any)
     expect(res.status).toBe(400)
   })

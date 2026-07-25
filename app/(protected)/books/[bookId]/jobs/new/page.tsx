@@ -1,10 +1,11 @@
 "use client"
 
-import { use, useEffect, useRef, useState, type FormEvent } from "react"
+import { use, useRef, useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { sliceBookPdf } from "@/lib/pdf/slice"
 
 type PdfDocumentProxy = import("pdfjs-dist").PDFDocumentProxy
 
@@ -16,9 +17,10 @@ export default function NewJobPage({ params }: Props) {
   const { bookId } = use(params)
   const router = useRouter()
 
+  const [pdfBytes, setPdfBytes] = useState<ArrayBuffer | null>(null)
   const [numPages, setNumPages] = useState<number | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [isRendering, setIsRendering] = useState(true)
+  const [isRendering, setIsRendering] = useState(false)
   const canvasRefs = useRef<Array<HTMLCanvasElement | null>>([])
 
   // Range selection: anchor is the first click of a selection, focus is the
@@ -33,61 +35,53 @@ export default function NewJobPage({ params }: Props) {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
-    let doc: PdfDocumentProxy | null = null
-    let loadingTask: ReturnType<typeof import("pdfjs-dist")["getDocument"]> | null = null
+  async function handleFileChange(file: File | null) {
+    setLoadError(null)
+    setAnchor(null)
+    setFocus(null)
+    setCommitted(false)
+    setNumPages(null)
+    setPdfBytes(null)
 
-    async function run() {
-      try {
-        const res = await fetch(`/api/books/${bookId}/pages`)
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}))
-          throw new Error(body.error ?? "Failed to load PDF")
-        }
-        const { signedUrl } = await res.json()
+    if (!file) return
 
-        const pdfjsLib = await import("pdfjs-dist")
-        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"
+    setIsRendering(true)
+    try {
+      const buffer = await file.arrayBuffer()
+      setPdfBytes(buffer)
 
-        loadingTask = pdfjsLib.getDocument({ url: signedUrl })
-        doc = await loadingTask.promise
-        if (cancelled || !doc) return
+      const pdfjsLib = await import("pdfjs-dist")
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"
 
-        setNumPages(doc.numPages)
-        canvasRefs.current = new Array(doc.numPages).fill(null)
+      // pdfjs detaches/transfers the buffer it's given, so hand it a copy and
+      // keep the original around for the later client-side slice.
+      const loadingTask = pdfjsLib.getDocument({ data: buffer.slice(0) })
+      const doc: PdfDocumentProxy = await loadingTask.promise
 
-        // Render thumbnails sequentially so we don't spike memory rendering
-        // 100+ pages in parallel; each render is cheap at this scale.
-        for (let i = 1; i <= doc.numPages; i++) {
-          if (cancelled) return
-          const page = await doc.getPage(i)
-          const viewport = page.getViewport({ scale: 0.3 })
-          const canvas = canvasRefs.current[i - 1]
-          if (!canvas) continue
-          canvas.width = viewport.width
-          canvas.height = viewport.height
-          const context = canvas.getContext("2d")
-          if (!context) continue
-          await page.render({ canvas, canvasContext: context, viewport }).promise
-        }
+      setNumPages(doc.numPages)
+      canvasRefs.current = new Array(doc.numPages).fill(null)
 
-        if (!cancelled) setIsRendering(false)
-      } catch (err) {
-        if (!cancelled) {
-          setLoadError(err instanceof Error ? err.message : "Failed to load PDF")
-          setIsRendering(false)
-        }
+      // Render thumbnails sequentially so we don't spike memory rendering
+      // 100+ pages in parallel; each render is cheap at this scale.
+      for (let i = 1; i <= doc.numPages; i++) {
+        const page = await doc.getPage(i)
+        const viewport = page.getViewport({ scale: 0.3 })
+        const canvas = canvasRefs.current[i - 1]
+        if (!canvas) continue
+        canvas.width = viewport.width
+        canvas.height = viewport.height
+        const context = canvas.getContext("2d")
+        if (!context) continue
+        await page.render({ canvas, canvasContext: context, viewport }).promise
       }
-    }
 
-    run()
-
-    return () => {
-      cancelled = true
-      loadingTask?.destroy()
+      loadingTask.destroy()
+      setIsRendering(false)
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Failed to load PDF")
+      setIsRendering(false)
     }
-  }, [bookId])
+  }
 
   function handlePageClick(page: number) {
     if (anchor === null || committed) {
@@ -109,12 +103,17 @@ export default function NewJobPage({ params }: Props) {
   const finalStart = anchor !== null && focus !== null ? Math.min(anchor, focus) : null
   const finalEnd = anchor !== null && focus !== null ? Math.max(anchor, focus) : null
 
-  const canSubmit = finalStart !== null && finalEnd !== null && lessonNo.trim() !== ""
+  const canSubmit =
+    pdfBytes !== null && finalStart !== null && finalEnd !== null && lessonNo.trim() !== ""
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSubmitError(null)
 
+    if (!pdfBytes) {
+      setSubmitError("Vui lòng chọn tệp PDF.")
+      return
+    }
     if (finalStart === null || finalEnd === null) {
       setSubmitError("Vui lòng chọn khoảng trang.")
       return
@@ -126,26 +125,34 @@ export default function NewJobPage({ params }: Props) {
     }
 
     setIsSubmitting(true)
-    const res = await fetch("/api/jobs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        bookId,
-        lessonNo: lessonNoNumber,
-        pageStart: finalStart,
-        pageEnd: finalEnd,
-      }),
-    })
-    setIsSubmitting(false)
+    try {
+      const sliced = await sliceBookPdf(new Uint8Array(pdfBytes), finalStart, finalEnd)
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      setSubmitError(body.error ?? "Failed to create job.")
-      return
+      const form = new FormData()
+      form.set("bookId", bookId)
+      form.set("lessonNo", String(lessonNoNumber))
+      form.set("pageStart", String(finalStart))
+      form.set("pageEnd", String(finalEnd))
+      form.set(
+        "file",
+        new File([sliced as BlobPart], `lesson-${lessonNoNumber}.pdf`, { type: "application/pdf" })
+      )
+
+      const res = await fetch("/api/jobs", { method: "POST", body: form })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setSubmitError(body.error ?? "Failed to create job.")
+        return
+      }
+
+      const job = await res.json()
+      router.push(`/books/${bookId}/jobs/${job.id}`)
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to create job.")
+    } finally {
+      setIsSubmitting(false)
     }
-
-    const job = await res.json()
-    router.push(`/books/${bookId}/jobs/${job.id}`)
   }
 
   return (
@@ -154,8 +161,20 @@ export default function NewJobPage({ params }: Props) {
         <div className="mx-auto w-full max-w-5xl">
           <h1 className="mb-1 text-xl font-semibold">Chọn khoảng trang</h1>
           <p className="mb-6 text-sm text-muted-foreground">
-            Nhấp một trang để bắt đầu, nhấp trang khác để kết thúc khoảng. Nhấp lại để chọn khoảng mới.
+            Chọn tệp PDF của sách từ máy tính, sau đó nhấp một trang để bắt đầu, nhấp trang khác để kết thúc khoảng. Nhấp lại để chọn khoảng mới.
           </p>
+
+          <div className="mb-6 flex flex-col gap-1.5">
+            <label htmlFor="pdfFile" className="text-sm font-medium">
+              Tệp PDF sách giáo khoa
+            </label>
+            <Input
+              id="pdfFile"
+              type="file"
+              accept="application/pdf,.pdf"
+              onChange={(event) => handleFileChange(event.target.files?.[0] ?? null)}
+            />
+          </div>
 
           {loadError && (
             <p role="alert" className="mb-4 text-sm text-destructive">
