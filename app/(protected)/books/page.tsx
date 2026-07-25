@@ -9,6 +9,10 @@ import {
 import { Button } from "@/components/ui/button"
 import type { Book } from "@/lib/db/types"
 
+// This page reads live DB state on every request; without this, Next.js
+// prerenders it once at build time and it goes permanently stale in prod.
+export const dynamic = "force-dynamic"
+
 export default async function BooksPage() {
   const supabase = createServerSupabase()
   const { data: books } = await supabase
