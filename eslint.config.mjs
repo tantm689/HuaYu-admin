@@ -16,6 +16,18 @@ const eslintConfig = defineConfig([
     // client-side PDF thumbnail rendering (see Task 7 report).
     "public/pdf.worker.min.mjs",
   ]),
+  {
+    // Test files widely rely on `as any` to satisfy Next.js 16's
+    // Promise-wrapped route-handler `params` type when mocking synchronous
+    // params objects, and to sidestep incidental Request/NextRequest type
+    // mismatches when constructing fetch Requests by hand. A per-file typed
+    // helper would need to be threaded through ~8 files for the same
+    // handful of call sites each; a scoped override here is less invasive.
+    files: ["tests/**/*.ts", "tests/**/*.tsx"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

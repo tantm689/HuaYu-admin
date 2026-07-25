@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 import { createServerSupabase } from "@/lib/supabase/server"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Accordion,
   AccordionContent,
