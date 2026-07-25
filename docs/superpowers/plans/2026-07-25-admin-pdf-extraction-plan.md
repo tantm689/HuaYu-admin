@@ -2273,6 +2273,26 @@ If Gemini consistently misreads specific fields (e.g. zhuyin columns), note it �
 
 ---
 
+## Task 18: Remove category field from vocabulary entirely
+
+**User request:** after applying migrations 0003 (RLS) and 0004 (drop zhuyin) to the live database, the user reviewed the imported vocabulary data and also wants the `category` field removed entirely from `vocabulary` — same treatment as Task 17's zhuyin removal, same reasoning (not needed).
+
+**Scope:** `category` currently appears in: `supabase/migrations/0001_init.sql` (`vocabulary.category` column), `lib/db/types.ts` (`VocabularyEntry.category`), `lib/gemini/schema.ts` (`VocabularyEntrySchema.category` in the Zod schema, and the corresponding property + description in `GEMINI_RESPONSE_SCHEMA`), `lib/gemini/extract.ts` (the `EXTRACTION_PROMPT` explicitly instructs capturing category — this one, unlike zhuyin, IS mentioned in the prompt text and must be edited), `lib/db/importJob.ts` (writes `category` into the `vocabulary` insert), `app/(protected)/books/[bookId]/jobs/[jobId]/page.tsx` (review-UI editable field), `app/(protected)/lessons/[lessonId]/page.tsx` (read-only display), `tests/lib/db/importJob.test.ts`, `tests/lib/gemini/schema.test.ts`.
+
+**Files:**
+- Create: `supabase/migrations/0005_remove_category.sql` — `alter table vocabulary drop column category;`. Same caveat as every prior migration: cannot be applied live from this environment, human operator must run it.
+- Modify: `lib/db/types.ts` — remove `category` from `VocabularyEntry`.
+- Modify: `lib/gemini/schema.ts` — remove `category` from `VocabularyEntrySchema` (Zod) and from `GEMINI_RESPONSE_SCHEMA`'s vocabulary item properties (including its `description`).
+- Modify: `lib/gemini/extract.ts` — remove the `EXTRACTION_PROMPT` instruction requiring `category` per vocabulary entry (added in Task 16 — read the current prompt text first to find the exact line(s)).
+- Modify: `lib/db/importJob.ts` — remove `category: vocab.category` (or equivalent) from the `vocabulary` insert payload.
+- Modify: `app/(protected)/books/[bookId]/jobs/[jobId]/page.tsx` — remove the category input field from the vocabulary edit form, and from the local editable-state shape if hand-typed there.
+- Modify: `app/(protected)/lessons/[lessonId]/page.tsx` — remove the category display from the vocabulary list.
+- Update: `tests/lib/db/importJob.test.ts`, `tests/lib/gemini/schema.test.ts` — remove `category` from mock/sample data and any assertions referencing it.
+
+**Testing:** run `npx tsc --noEmit`, full `npm run test`, `npm run build`, `npm run lint` — all clean. After this task, an independent grep for `\bcategory\b` across `*.ts`/`*.tsx`/`*.sql` (excluding `node_modules`, `.superpowers/sdd/` task artifacts, and `docs/`) should return nothing.
+
+---
+
 ## Self-Review Notes
 
 - **Spec coverage:** upload/storage (Task 6), page-range extraction job creation (Task 7), slicing (Task 4), Gemini extraction restricted to dialogues/official-vocab/grammar-without-exercises (Task 5), review+edit UI (Task 9), import with duplicate `lesson_no` handled by the DB's `unique (book_id, lesson_no)` constraint surfacing as a Postgres error the import route returns as a 500 with message (admin sees it and can decide to edit `lessonNo` before retrying), vocabulary TTS (Task 11) wired non-blocking into import (Task 10), dialogue audio bulk upload matched by `audio_code` (Task 12), publish workflow (Task 13), single-admin auth (Task 3), Gemini model pinned to `gemini-3.5-flash-lite` (Task 5). All covered.
