@@ -1,15 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const state: Record<string, any> = {}
-
-function makeChain(resolveValue: any) {
-  return {
-    select: () => ({ single: () => Promise.resolve({ data: resolveValue, error: null }) }),
-    eq: function () { return this },
-    single: () => Promise.resolve({ data: resolveValue, error: null }),
-  }
-}
-
 const { insertLessonMock, generateVocabAudioMock } = vi.hoisted(() => ({
   insertLessonMock: vi.fn(),
   generateVocabAudioMock: vi.fn().mockResolvedValue(new Uint8Array([1])),
