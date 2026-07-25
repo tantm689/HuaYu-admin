@@ -57,4 +57,42 @@ describe('POST /api/jobs', () => {
     const res = await POST(req as any)
     expect(res.status).toBe(400)
   })
+
+  it('rejects and never inserts when the file field is missing', async () => {
+    insertMock.mockClear()
+    const form = new FormData()
+    form.set('bookId', 'book-1')
+    form.set('lessonNo', '1')
+    form.set('pageStart', '27')
+    form.set('pageEnd', '45')
+    // no 'file' field set
+
+    const req = new Request('http://localhost/api/jobs', { method: 'POST', body: form })
+    const res = await POST(req as any)
+    const json = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(typeof json.error).toBe('string')
+    expect(insertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects and never inserts when pageStart is missing/malformed', async () => {
+    insertMock.mockClear()
+    const form = buildForm({ bookId: 'book-1', lessonNo: '1', pageStart: 'not-a-number', pageEnd: '45' })
+    const req = new Request('http://localhost/api/jobs', { method: 'POST', body: form })
+    const res = await POST(req as any)
+
+    expect(res.status).toBe(400)
+    expect(insertMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects and never inserts when bookId is missing', async () => {
+    insertMock.mockClear()
+    const form = buildForm({ lessonNo: '1', pageStart: '27', pageEnd: '45' })
+    const req = new Request('http://localhost/api/jobs', { method: 'POST', body: form })
+    const res = await POST(req as any)
+
+    expect(res.status).toBe(400)
+    expect(insertMock).not.toHaveBeenCalled()
+  })
 })
