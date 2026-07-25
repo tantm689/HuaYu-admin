@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored pdfjs-dist worker, copied verbatim into public/ for
+    // client-side PDF thumbnail rendering (see Task 7 report).
+    "public/pdf.worker.min.mjs",
   ]),
 ]);
 
