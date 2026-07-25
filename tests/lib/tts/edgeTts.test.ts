@@ -1,7 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
+import { Readable } from 'stream'
 
-const toArrayBufferMock = vi.fn().mockResolvedValue(Buffer.from([1, 2, 3]))
-const toStreamMock = vi.fn()
+const toStreamMock = vi.fn().mockImplementation(() => {
+  const audioStream = new Readable({
+    read() {
+      this.push(Buffer.from([1, 2, 3]))
+      this.push(Buffer.from([4, 5]))
+      this.push(null)
+    },
+  })
+  return { audioStream, metadataStream: null }
+})
 
 vi.mock('msedge-tts', () => ({
   // NOTE: vitest v4's mock constructors require 'function'/'class' syntax
@@ -12,7 +21,7 @@ vi.mock('msedge-tts', () => ({
   MsEdgeTTS: vi.fn().mockImplementation(function () {
     return {
       setMetadata: vi.fn().mockResolvedValue(undefined),
-      toArrayBuffer: toArrayBufferMock,
+      toStream: toStreamMock,
     }
   }),
   OUTPUT_FORMAT: { AUDIO_24KHZ_48KBITRATE_MONO_MP3: 'audio-24khz-48kbitrate-mono-mp3' },
@@ -25,6 +34,7 @@ describe('generateVocabAudio', () => {
     const bytes = await generateVocabAudio('你好')
     expect(bytes).toBeInstanceOf(Uint8Array)
     expect(bytes.length).toBeGreaterThan(0)
+    expect(Array.from(bytes)).toEqual([1, 2, 3, 4, 5])
   })
 
   it('rejects empty text', async () => {
