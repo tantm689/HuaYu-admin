@@ -21,7 +21,6 @@ const DialogueSchema = z.object({
 
 const VocabularyEntrySchema = z.object({
   order: z.number(),
-  category: nullableString,
   wordZh: z.string(),
   pinyin: nullableString,
   meaningVi: nullableString,
@@ -113,12 +112,6 @@ export const GEMINI_RESPONSE_SCHEMA = {
         type: 'object',
         properties: {
           order: { type: 'integer', description: 'Thứ tự của từ vựng trong bảng từ vựng, bắt đầu từ 1.' },
-          category: {
-            type: 'string',
-            nullable: true,
-            description:
-              "Tên nhóm từ vựng như in trong sách, ví dụ 'Tên riêng', 'Cụm từ', 'Danh từ' — lấy từ tiêu đề nhóm ngay phía trên trong bảng. Chỉ để null nếu bảng từ vựng không chia nhóm cho từ này.",
-          },
           wordZh: { type: 'string', description: 'Chữ Hán của từ vựng, lấy nguyên văn từ bảng từ vựng.' },
           pinyin: { type: 'string', nullable: true, description: 'Pinyin của từ vựng nếu bảng có ghi, null nếu không có.' },
           meaningVi: {

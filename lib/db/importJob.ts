@@ -75,7 +75,6 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
         .insert({
           lesson_id: lesson.id,
           order: vocab.order,
-          category: vocab.category,
           word_zh: vocab.wordZh,
           pinyin: vocab.pinyin,
           meaning_vi: vocab.meaningVi,

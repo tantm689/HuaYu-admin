@@ -45,7 +45,6 @@ export interface VocabularyEntry {
   id: string
   lesson_id: string
   order: number
-  category: string | null
   word_zh: string
   pinyin: string | null
   meaning_vi: string | null

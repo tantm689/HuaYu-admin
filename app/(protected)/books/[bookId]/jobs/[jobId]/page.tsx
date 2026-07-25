@@ -47,7 +47,7 @@ function emptyDialogue(order: number): Dialogue {
 }
 
 function emptyVocab(order: number): VocabularyEntry {
-  return { order, category: null, wordZh: "", pinyin: null, meaningVi: null }
+  return { order, wordZh: "", pinyin: null, meaningVi: null }
 }
 
 function emptyExample(order: number): GrammarExample {
@@ -677,7 +677,7 @@ export default function JobReviewPage({ params }: Props) {
                 </div>
                 <div className="flex flex-col gap-2">
                   {data.vocabulary.map((vocab, vIdx) => (
-                    <div key={vIdx} className="grid grid-cols-2 gap-2 rounded-md border bg-muted/20 p-2.5 sm:grid-cols-5">
+                    <div key={vIdx} className="grid grid-cols-2 gap-2 rounded-md border bg-muted/20 p-2.5 sm:grid-cols-4">
                       <Input
                         placeholder="Từ (Trung)"
                         value={vocab.wordZh}
@@ -694,11 +694,6 @@ export default function JobReviewPage({ params }: Props) {
                         onChange={(e) => updateVocab(vIdx, { meaningVi: e.target.value || null })}
                       />
                       <div className="flex items-center gap-2">
-                        <Input
-                          placeholder="Loại từ"
-                          value={vocab.category ?? ""}
-                          onChange={(e) => updateVocab(vIdx, { category: e.target.value || null })}
-                        />
                         <Button type="button" variant="ghost" size="sm" onClick={() => removeVocab(vIdx)}>
                           Xoá
                         </Button>

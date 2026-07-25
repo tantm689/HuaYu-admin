@@ -199,9 +199,6 @@ export default async function LessonDetailPage({ params }: Props) {
                     {vocab.meaning_vi && (
                       <p className="text-sm text-muted-foreground">{vocab.meaning_vi}</p>
                     )}
-                    {vocab.category && (
-                      <p className="text-xs text-muted-foreground">{vocab.category}</p>
-                    )}
                   </div>
                   {vocab.audio_url && (
                     <audio controls preload="none" src={vocab.audio_url} className="h-8 max-w-[12rem]" />

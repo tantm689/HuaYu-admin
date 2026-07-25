@@ -42,7 +42,7 @@ vi.mock('@/lib/supabase/server', () => ({
               raw_json: {
                 lesson: { lessonNo: 1, titleZh: 'A', titleVi: 'B', theme: null, objectives: [] },
                 dialogues: [{ order: 1, titleZh: null, titleVi: null, audioCode: '01-1', lines: [{ order: 1, speakerZh: null, speakerPinyin: null, textZh: 'x', pinyin: null, translationVi: null }] }],
-                vocabulary: [{ order: 1, category: null, wordZh: '你好', pinyin: 'nǐ hǎo', meaningVi: 'xin chào' }],
+                vocabulary: [{ order: 1, wordZh: '你好', pinyin: 'nǐ hǎo', meaningVi: 'xin chào' }],
                 grammarPoints: [{ order: 1, titleZh: 'G1', titleVi: null, structureNote: null, examples: [{ order: 1, textZh: 'e', pinyin: null, translationVi: null }] }],
               },
             },
