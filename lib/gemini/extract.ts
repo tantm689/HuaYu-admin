@@ -33,9 +33,12 @@ export async function extractLessonFromPdf(
     },
   })
 
+  const responseText = response.text
+
   let parsedJson: unknown
   try {
-    parsedJson = JSON.parse(response.text)
+    if (!responseText) throw new Error('empty response')
+    parsedJson = JSON.parse(responseText)
   } catch {
     throw new Error('Gemini response was not valid JSON')
   }
