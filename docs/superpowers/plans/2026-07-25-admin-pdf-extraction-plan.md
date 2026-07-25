@@ -2234,6 +2234,25 @@ If Gemini consistently misreads specific fields (e.g. zhuyin columns), note it �
 
 ---
 
+## Task 16: Fix Gemini extraction dropping vocabulary meaningVi/category
+
+**Discovered during Task 14 live verification against the real textbook and real Gemini API:** ran a real extraction job against Bài 1 (pages 27-45 of the actual PDF). Chữ Hán (`wordZh`), `pinyin`, and `zhuyin` came back 100% correct for all 43 vocabulary entries — but **`meaningVi` and `category` were `null` for every single entry**, even though the source pages clearly have a Vietnamese meaning column and category groupings ("Tên riêng", "Cụm từ", etc. — confirmed visually on the source PDF page for this exact lesson). Dialogues and grammar points extracted correctly with no similar gaps. This is a real, reproducible defect, not a one-off flake — it is systemic across all 43 entries in one real run.
+
+**Root cause (likely):** `lib/gemini/extract.ts`'s `EXTRACTION_PROMPT` tells Gemini what sections to extract (dialogues/vocabulary/grammar) but never explicitly says "capture the Vietnamese meaning and category for each vocabulary entry." `lib/gemini/schema.ts`'s `GEMINI_RESPONSE_SCHEMA` (the JSON Schema passed as `responseSchema` to steer structured output) has no `description` field on any property — Gemini's structured-output mode relies heavily on schema property descriptions to know what each field should actually contain; two fields with no description and no prompt mention are the most likely to be silently left null.
+
+**Fix:**
+1. In `lib/gemini/schema.ts`, add a `description` string to every property in `GEMINI_RESPONSE_SCHEMA`, especially (but not only) `vocabulary[].meaningVi` (e.g. "Nghĩa tiếng Việt của từ, lấy nguyên văn từ cột nghĩa trong bảng từ vựng — KHÔNG được để trống nếu sách có ghi nghĩa") and `vocabulary[].category` (e.g. "Tên nhóm từ vựng như in trong sách, ví dụ 'Tên riêng', 'Cụm từ', 'Danh từ' — lấy từ tiêu đề nhóm ngay phía trên trong bảng"). Add descriptions to the other fields too (`wordZh`, `pinyin`, `zhuyin`, dialogue fields, grammar fields) for consistency and to reduce the chance of a similar silent-drop bug elsewhere, even though those fields extracted correctly this run.
+2. In `lib/gemini/extract.ts`'s `EXTRACTION_PROMPT`, add an explicit line under the vocabulary instruction requiring every entry to include its Vietnamese meaning (`meaningVi`) and its category/group label (`category`) exactly as printed in the book, and to never leave `meaningVi` null if the book shows a meaning for that word.
+3. These are prompt/schema text changes only — no changes to `ExtractionResultSchema` (the Zod validator) or any TypeScript types, since `meaningVi`/`category` were always part of the shape, just not reliably populated by the model.
+
+**Testing:** the existing Vitest tests for `lib/gemini/schema.ts` and `lib/gemini/extract.ts` mock the Gemini SDK entirely, so they will still pass unchanged (this bug can't be caught by mocked unit tests — it's a live-model-behavior issue). No new automated test is expected to catch this category of bug; instead, after this fix lands, the human operator (with the orchestrating session) will re-run a real extraction against the same real lesson pages used to discover the bug and manually confirm `meaningVi`/`category` are now populated for all/most entries before considering Task 14 verification complete. Do still run `npx tsc --noEmit`, the full test suite, and `npm run build` to confirm nothing else broke.
+
+**Files:**
+- Modify: `lib/gemini/schema.ts` (add `description` to `GEMINI_RESPONSE_SCHEMA` properties)
+- Modify: `lib/gemini/extract.ts` (strengthen `EXTRACTION_PROMPT`)
+
+---
+
 ## Self-Review Notes
 
 - **Spec coverage:** upload/storage (Task 6), page-range extraction job creation (Task 7), slicing (Task 4), Gemini extraction restricted to dialogues/official-vocab/grammar-without-exercises (Task 5), review+edit UI (Task 9), import with duplicate `lesson_no` handled by the DB's `unique (book_id, lesson_no)` constraint surfacing as a Postgres error the import route returns as a 500 with message (admin sees it and can decide to edit `lessonNo` before retrying), vocabulary TTS (Task 11) wired non-blocking into import (Task 10), dialogue audio bulk upload matched by `audio_code` (Task 12), publish workflow (Task 13), single-admin auth (Task 3), Gemini model pinned to `gemini-3.5-flash-lite` (Task 5). All covered.
