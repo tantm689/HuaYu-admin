@@ -16,33 +16,25 @@ export default function NewBookPage() {
   const router = useRouter()
   const [title, setTitle] = useState("")
   const [volume, setVolume] = useState("")
-  const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
-
-    if (!file) {
-      setError("Please choose a PDF file.")
-      return
-    }
-
     setIsSubmitting(true)
 
-    const form = new FormData()
-    form.set("title", title)
-    form.set("volume", volume)
-    form.set("file", file)
-
-    const res = await fetch("/api/books", { method: "POST", body: form })
+    const res = await fetch("/api/books", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, volume }),
+    })
 
     setIsSubmitting(false)
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
-      setError(body.error ?? "Failed to upload book.")
+      setError(body.error ?? "Failed to create book.")
       return
     }
 
@@ -56,7 +48,7 @@ export default function NewBookPage() {
         <CardHeader>
           <CardTitle className="text-lg">Thêm sách mới</CardTitle>
           <CardDescription>
-            Tải lên tệp PDF của sách giáo khoa để bắt đầu trích xuất nội dung.
+            Nhập thông tin sách giáo khoa để bắt đầu tạo bài học. Tệp PDF sẽ được chọn riêng cho từng bài học.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -86,26 +78,13 @@ export default function NewBookPage() {
                 onChange={(event) => setVolume(event.target.value)}
               />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="file" className="text-sm font-medium">
-                Tệp PDF
-              </label>
-              <Input
-                id="file"
-                name="file"
-                type="file"
-                accept="application/pdf,.pdf"
-                required
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              />
-            </div>
             {error && (
               <p role="alert" className="text-sm text-destructive">
                 {error}
               </p>
             )}
             <Button type="submit" disabled={isSubmitting} className="mt-2 w-full">
-              {isSubmitting ? "Đang tải lên..." : "Tải lên"}
+              {isSubmitting ? "Đang tạo..." : "Tạo sách"}
             </Button>
           </form>
         </CardContent>
