@@ -1,10 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import type { Session } from '@supabase/supabase-js'
+import type { User } from '@supabase/supabase-js'
 
-export function shouldRedirectToLogin(session: Session | null, pathname: string): boolean {
+export function shouldRedirectToLogin(user: User | null, pathname: string): boolean {
   if (pathname.startsWith('/login')) return false
-  return session === null
+  return user === null
 }
 
 export async function updateSession(request: NextRequest) {
@@ -25,9 +25,9 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (shouldRedirectToLogin(session, request.nextUrl.pathname)) {
+  if (shouldRedirectToLogin(user, request.nextUrl.pathname)) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
