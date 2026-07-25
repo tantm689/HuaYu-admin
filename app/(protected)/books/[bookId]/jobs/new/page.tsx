@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { sliceBookPdf } from "@/lib/pdf/slice"
 
 type PdfDocumentProxy = import("pdfjs-dist").PDFDocumentProxy
+type PdfLoadingTask = import("pdfjs-dist").PDFDocumentLoadingTask
 
 interface Props {
   params: Promise<{ bookId: string }>
@@ -22,6 +23,11 @@ export default function NewJobPage({ params }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isRendering, setIsRendering] = useState(false)
   const canvasRefs = useRef<Array<HTMLCanvasElement | null>>([])
+  // Bumped on every file selection so a stale render loop from a
+  // previously-selected file can detect it's been superseded and stop
+  // writing thumbnails into canvases that now belong to a newer file.
+  const renderGenerationRef = useRef(0)
+  const loadingTaskRef = useRef<PdfLoadingTask | null>(null)
 
   // Range selection: anchor is the first click of a selection, focus is the
   // second. While `committed` is false, hovering another thumbnail previews
@@ -36,6 +42,15 @@ export default function NewJobPage({ params }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleFileChange(file: File | null) {
+    // Supersede any in-flight render loop from a previously selected file
+    // before it can write stale pages into this selection's canvases.
+    const generation = ++renderGenerationRef.current
+
+    if (loadingTaskRef.current) {
+      loadingTaskRef.current.destroy()
+      loadingTaskRef.current = null
+    }
+
     setLoadError(null)
     setAnchor(null)
     setFocus(null)
@@ -48,6 +63,7 @@ export default function NewJobPage({ params }: Props) {
     setIsRendering(true)
     try {
       const buffer = await file.arrayBuffer()
+      if (generation !== renderGenerationRef.current) return
       setPdfBytes(buffer)
 
       const pdfjsLib = await import("pdfjs-dist")
@@ -56,7 +72,16 @@ export default function NewJobPage({ params }: Props) {
       // pdfjs detaches/transfers the buffer it's given, so hand it a copy and
       // keep the original around for the later client-side slice.
       const loadingTask = pdfjsLib.getDocument({ data: buffer.slice(0) })
+      loadingTaskRef.current = loadingTask
       const doc: PdfDocumentProxy = await loadingTask.promise
+
+      if (generation !== renderGenerationRef.current) {
+        loadingTask.destroy()
+        if (loadingTaskRef.current === loadingTask) {
+          loadingTaskRef.current = null
+        }
+        return
+      }
 
       setNumPages(doc.numPages)
       canvasRefs.current = new Array(doc.numPages).fill(null)
@@ -64,7 +89,9 @@ export default function NewJobPage({ params }: Props) {
       // Render thumbnails sequentially so we don't spike memory rendering
       // 100+ pages in parallel; each render is cheap at this scale.
       for (let i = 1; i <= doc.numPages; i++) {
+        if (generation !== renderGenerationRef.current) return
         const page = await doc.getPage(i)
+        if (generation !== renderGenerationRef.current) return
         const viewport = page.getViewport({ scale: 0.3 })
         const canvas = canvasRefs.current[i - 1]
         if (!canvas) continue
@@ -75,11 +102,18 @@ export default function NewJobPage({ params }: Props) {
         await page.render({ canvas, canvasContext: context, viewport }).promise
       }
 
+      if (generation === renderGenerationRef.current) {
+        setIsRendering(false)
+      }
+      if (loadingTaskRef.current === loadingTask) {
+        loadingTaskRef.current = null
+      }
       loadingTask.destroy()
-      setIsRendering(false)
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : "Failed to load PDF")
-      setIsRendering(false)
+      if (generation === renderGenerationRef.current) {
+        setLoadError(err instanceof Error ? err.message : "Failed to load PDF")
+        setIsRendering(false)
+      }
     }
   }
 
