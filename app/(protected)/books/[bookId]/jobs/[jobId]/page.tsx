@@ -13,6 +13,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { cn } from "@/lib/utils"
+import { waitForCanvasRef } from "@/lib/pdf/waitForCanvasRef"
 import type { ExtractionJob, JobStatus } from "@/lib/db/types"
 import type { ExtractionResult } from "@/lib/gemini/schema"
 
@@ -103,6 +104,10 @@ export default function JobReviewPage({ params }: Props) {
   }, [jobId])
 
   useEffect(() => {
+    // loadJob sets state synchronously before its first await; this is an
+    // intentional initial-data-fetch-on-mount pattern, not a cascading-render
+    // bug, so the react-hooks set-state-in-effect rule is suppressed here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadJob()
   }, [loadJob])
 
@@ -140,7 +145,7 @@ export default function JobReviewPage({ params }: Props) {
           if (cancelled) return
           const pdfPage = await doc.getPage(page)
           const viewport = pdfPage.getViewport({ scale: 1.3 })
-          const canvas = canvasRefs.current[page - 1]
+          const canvas = await waitForCanvasRef(canvasRefs, page - 1, () => cancelled)
           if (!canvas) continue
           canvas.width = viewport.width
           canvas.height = viewport.height
@@ -413,6 +418,11 @@ export default function JobReviewPage({ params }: Props) {
         <div className="flex flex-wrap items-center gap-2">
           {saveError && <p className="text-sm text-destructive">{saveError}</p>}
           {saveSuccess && <p className="text-sm text-emerald-600">Đã lưu.</p>}
+          {job.status === "pending" && !job.raw_json && (
+            <Button variant="outline" onClick={handleRetry} disabled={isRetrying}>
+              {isRetrying ? "Đang trích xuất..." : "Trích xuất nội dung"}
+            </Button>
+          )}
           {job.status === "failed" && (
             <Button variant="outline" onClick={handleRetry} disabled={isRetrying}>
               {isRetrying ? "Đang thử lại..." : "Thử lại"}

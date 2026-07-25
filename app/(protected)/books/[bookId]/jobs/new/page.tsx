@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { sliceBookPdf } from "@/lib/pdf/slice"
+import { waitForCanvasRef } from "@/lib/pdf/waitForCanvasRef"
 
 type PdfDocumentProxy = import("pdfjs-dist").PDFDocumentProxy
 type PdfLoadingTask = import("pdfjs-dist").PDFDocumentLoadingTask
@@ -93,7 +94,7 @@ export default function NewJobPage({ params }: Props) {
         const page = await doc.getPage(i)
         if (generation !== renderGenerationRef.current) return
         const viewport = page.getViewport({ scale: 0.3 })
-        const canvas = canvasRefs.current[i - 1]
+        const canvas = await waitForCanvasRef(canvasRefs, i - 1, () => generation !== renderGenerationRef.current)
         if (!canvas) continue
         canvas.width = viewport.width
         canvas.height = viewport.height
