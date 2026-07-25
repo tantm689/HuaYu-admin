@@ -24,7 +24,6 @@ const VocabularyEntrySchema = z.object({
   category: nullableString,
   wordZh: z.string(),
   pinyin: nullableString,
-  zhuyin: nullableString,
   meaningVi: nullableString,
 })
 
@@ -122,7 +121,6 @@ export const GEMINI_RESPONSE_SCHEMA = {
           },
           wordZh: { type: 'string', description: 'Chữ Hán của từ vựng, lấy nguyên văn từ bảng từ vựng.' },
           pinyin: { type: 'string', nullable: true, description: 'Pinyin của từ vựng nếu bảng có ghi, null nếu không có.' },
-          zhuyin: { type: 'string', nullable: true, description: 'Chú âm (Zhuyin/Bopomofo) của từ vựng nếu bảng có ghi, null nếu không có.' },
           meaningVi: {
             type: 'string',
             nullable: true,

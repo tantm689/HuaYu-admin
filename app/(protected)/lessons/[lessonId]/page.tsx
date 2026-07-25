@@ -195,7 +195,6 @@ export default async function LessonDetailPage({ params }: Props) {
                     <p className="text-sm font-medium">
                       {vocab.word_zh}
                       {vocab.pinyin ? ` · ${vocab.pinyin}` : ""}
-                      {vocab.zhuyin ? ` · ${vocab.zhuyin}` : ""}
                     </p>
                     {vocab.meaning_vi && (
                       <p className="text-sm text-muted-foreground">{vocab.meaning_vi}</p>

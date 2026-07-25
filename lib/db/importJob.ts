@@ -78,7 +78,6 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
           category: vocab.category,
           word_zh: vocab.wordZh,
           pinyin: vocab.pinyin,
-          zhuyin: vocab.zhuyin,
           meaning_vi: vocab.meaningVi,
         })
         .select()

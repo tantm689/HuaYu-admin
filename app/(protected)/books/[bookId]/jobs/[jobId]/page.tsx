@@ -47,7 +47,7 @@ function emptyDialogue(order: number): Dialogue {
 }
 
 function emptyVocab(order: number): VocabularyEntry {
-  return { order, category: null, wordZh: "", pinyin: null, zhuyin: null, meaningVi: null }
+  return { order, category: null, wordZh: "", pinyin: null, meaningVi: null }
 }
 
 function emptyExample(order: number): GrammarExample {
@@ -687,11 +687,6 @@ export default function JobReviewPage({ params }: Props) {
                         placeholder="Pinyin"
                         value={vocab.pinyin ?? ""}
                         onChange={(e) => updateVocab(vIdx, { pinyin: e.target.value || null })}
-                      />
-                      <Input
-                        placeholder="Chú âm"
-                        value={vocab.zhuyin ?? ""}
-                        onChange={(e) => updateVocab(vIdx, { zhuyin: e.target.value || null })}
                       />
                       <Input
                         placeholder="Nghĩa (Việt)"

@@ -48,7 +48,6 @@ export interface VocabularyEntry {
   category: string | null
   word_zh: string
   pinyin: string | null
-  zhuyin: string | null
   meaning_vi: string | null
   audio_url: string | null
 }
