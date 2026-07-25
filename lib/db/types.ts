@@ -5,7 +5,6 @@ export interface Book {
   id: string
   title: string
   volume: string | null
-  pdf_path: string
   created_at: string
 }
 
@@ -78,6 +77,7 @@ export interface ExtractionJob {
   lesson_no: number
   page_start: number
   page_end: number
+  sliced_pdf_path: string | null
   status: JobStatus
   raw_json: unknown
   error_message: string | null
