@@ -83,4 +83,4 @@ create table extraction_jobs (
 );
 
 insert into storage.buckets (id, name, public) values ('book-pdfs', 'book-pdfs', false);
-insert into storage.buckets (id, name, public) values ('audio', 'audio', false);
+insert into storage.buckets (id, name, public) values ('audio', 'audio', true);
