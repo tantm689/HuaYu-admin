@@ -86,6 +86,7 @@ export default function JobReviewPage({ params }: Props) {
 
   const [isImporting, setIsImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
+  const [dialogueAudioFiles, setDialogueAudioFiles] = useState<Record<number, File>>({})
 
   const [numPagesRendered, setNumPagesRendered] = useState(0)
   const [pdfError, setPdfError] = useState<string | null>(null)
@@ -222,11 +223,27 @@ export default function JobReviewPage({ params }: Props) {
     }
   }
 
+  function handleDialogueAudioChange(dIdx: number, file: File | null) {
+    setDialogueAudioFiles((prev) => {
+      const next = { ...prev }
+      if (file) {
+        next[dIdx] = file
+      } else {
+        delete next[dIdx]
+      }
+      return next
+    })
+  }
+
   async function handleImport() {
     setIsImporting(true)
     setImportError(null)
     try {
-      const res = await fetch(`/api/jobs/${jobId}/import`, { method: "POST" })
+      const form = new FormData()
+      for (const file of Object.values(dialogueAudioFiles)) {
+        form.append("audioFiles", file, file.name)
+      }
+      const res = await fetch(`/api/jobs/${jobId}/import`, { method: "POST", body: form })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? "Nhập vào cơ sở dữ liệu thất bại.")
@@ -589,6 +606,27 @@ export default function JobReviewPage({ params }: Props) {
                                 onChange={(e) => updateDialogue(dIdx, { audioCode: e.target.value || null })}
                               />
                             </div>
+                          </div>
+
+                          <div className="flex flex-col gap-1.5">
+                            <Label>File audio hội thoại (tuỳ chọn)</Label>
+                            <Input
+                              type="file"
+                              accept="audio/mpeg"
+                              onChange={(e) =>
+                                handleDialogueAudioChange(dIdx, e.target.files?.[0] ?? null)
+                              }
+                            />
+                            {dialogueAudioFiles[dIdx] ? (
+                              <p className="text-xs text-muted-foreground">
+                                Đã chọn: {dialogueAudioFiles[dIdx].name} — sẽ gắn vào hội thoại này khi Import.
+                              </p>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">
+                                Chưa chọn file. Bạn cũng có thể gắn audio sau khi import ở trang &quot;Gắn audio hội
+                                thoại&quot;.
+                              </p>
+                            )}
                           </div>
 
                           <div className="flex flex-col gap-2">

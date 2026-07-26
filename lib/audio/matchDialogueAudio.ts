@@ -8,7 +8,7 @@ interface MatchResult {
   unmatched: string[]
 }
 
-function stripExtension(filename: string): string {
+export function stripExtension(filename: string): string {
   return filename.replace(/\.[^.]+$/, '')
 }
 

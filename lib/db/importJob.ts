@@ -1,10 +1,19 @@
 import { createServerSupabase } from '@/lib/supabase/server'
 import { generateVocabAudio } from '@/lib/tts/edgeTts'
 import { ExtractionResultSchema } from '@/lib/gemini/schema'
+import { stripExtension } from '@/lib/audio/matchDialogueAudio'
 
 const VOCAB_TTS_TIMEOUT_MS = 15_000
 
-export async function importExtractionJob(jobId: string): Promise<{ lessonId: string }> {
+export interface DialogueAudioFile {
+  filename: string
+  buffer: ArrayBuffer
+}
+
+export async function importExtractionJob(
+  jobId: string,
+  dialogueAudioFiles: DialogueAudioFile[] = []
+): Promise<{ lessonId: string }> {
   const supabase = createServerSupabase()
 
   const { data: job, error: jobError } = await supabase
@@ -18,6 +27,10 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
   }
 
   const result = ExtractionResultSchema.parse(job.raw_json)
+
+  const audioByCode = new Map(
+    dialogueAudioFiles.map((f) => [stripExtension(f.filename).toLowerCase(), f])
+  )
 
   const { data: lesson, error: lessonError } = await supabase
     .from('lessons')
@@ -52,6 +65,23 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
         .single()
 
       if (dlgError || !dlgRow) throw new Error(dlgError?.message ?? 'failed to insert dialogue')
+
+      const audioFile = dialogue.audioCode ? audioByCode.get(dialogue.audioCode.toLowerCase()) : undefined
+      if (audioFile) {
+        try {
+          const path = `dialogues/${dlgRow.id}.mp3`
+          const { error: uploadError } = await supabase.storage
+            .from('audio')
+            .upload(path, audioFile.buffer, { contentType: 'audio/mpeg', upsert: true })
+          if (!uploadError) {
+            const { data: publicUrl } = supabase.storage.from('audio').getPublicUrl(path)
+            await supabase.from('dialogues').update({ audio_url: publicUrl.publicUrl }).eq('id', dlgRow.id)
+          }
+        } catch {
+          // Best effort; admin can attach dialogue audio later from the
+          // book's "Gắn audio hội thoại" page if this upload fails.
+        }
+      }
 
       if (dialogue.lines.length > 0) {
         const { error: linesError } = await supabase.from('dialogue_lines').insert(
@@ -144,6 +174,16 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
   }
 
   await supabase.from('extraction_jobs').update({ status: 'imported' }).eq('id', jobId)
+
+  if (job.sliced_pdf_path) {
+    try {
+      await supabase.storage.from('book-pdfs').remove([job.sliced_pdf_path])
+      await supabase.from('extraction_jobs').update({ sliced_pdf_path: null }).eq('id', jobId)
+    } catch {
+      // Best effort cleanup; a leftover sliced PDF is harmless once the job
+      // is imported, it's just wasted storage that can be removed manually.
+    }
+  }
 
   return { lessonId: lesson.id }
 }
