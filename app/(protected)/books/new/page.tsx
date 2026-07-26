@@ -43,7 +43,7 @@ export default function NewBookPage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-lg flex-1 items-start justify-center px-4 py-16">
+    <main className="mx-auto flex w-full max-w-lg flex-1 items-start justify-center bg-background px-4 py-16 sm:px-6">
       <Card className="w-full">
         <CardHeader>
           <CardTitle className="text-lg">Thêm sách mới</CardTitle>
@@ -54,7 +54,7 @@ export default function NewBookPage() {
         <CardContent>
           <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="title" className="text-sm font-medium">
+              <label htmlFor="title" className="text-sm font-medium text-foreground">
                 Tên sách
               </label>
               <Input
@@ -67,7 +67,7 @@ export default function NewBookPage() {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="volume" className="text-sm font-medium">
+              <label htmlFor="volume" className="text-sm font-medium text-foreground">
                 Tập / Quyển
               </label>
               <Input

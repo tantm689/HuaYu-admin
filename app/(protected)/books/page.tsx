@@ -5,6 +5,7 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
+  CardContent,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import type { Book } from "@/lib/db/types"
@@ -23,21 +24,28 @@ export default async function BooksPage() {
   const rows = (books ?? []) as Book[]
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-10">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Sách</h1>
+    <main className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
+      <div className="mb-8 flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Sách</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Quản lý sách giáo khoa và các bài học được trích xuất.
+          </p>
+        </div>
         <Button render={<Link href="/books/new">Thêm sách mới</Link>} />
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Chưa có sách nào. Hãy tải lên một tệp PDF để bắt đầu.
-        </p>
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            Chưa có sách nào. Hãy tải lên một tệp PDF để bắt đầu.
+          </CardContent>
+        </Card>
       ) : (
         <div className="flex flex-col gap-3">
           {rows.map((book) => (
             <Link key={book.id} href={`/books/${book.id}`}>
-              <Card className="transition-colors hover:bg-muted/50">
+              <Card className="cursor-pointer transition-all hover:border-primary/40 hover:shadow-md">
                 <CardHeader>
                   <CardTitle>{book.title}</CardTitle>
                   <CardDescription>
