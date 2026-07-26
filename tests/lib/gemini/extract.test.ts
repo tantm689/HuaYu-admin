@@ -23,7 +23,7 @@ describe('extractLessonFromPdf', () => {
   it('parses a valid Gemini JSON response into an ExtractionResult', async () => {
     generateContentMock.mockResolvedValueOnce({
       text: JSON.stringify({
-        lesson: { lessonNo: 1, titleZh: 'A', titleVi: 'B', theme: null, objectives: [] },
+        lesson: { lessonNo: 1, titleZh: 'A', titleVi: 'B', theme: null },
         dialogues: [],
         vocabulary: [],
         grammarPoints: [],

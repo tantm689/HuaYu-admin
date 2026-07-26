@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { ExtractionResultSchema } from '@/lib/gemini/schema'
 
 const validSample = {
-  lesson: { lessonNo: 1, titleZh: '歡迎你來臺灣！', titleVi: 'Chào mừng bạn đến Đài Loan!', theme: 'Giới thiệu bản thân', objectives: ['Học cách chào hỏi đơn giản.'] },
+  lesson: { lessonNo: 1, titleZh: '歡迎你來臺灣！', titleVi: 'Chào mừng bạn đến Đài Loan!', theme: 'Giới thiệu bản thân' },
   dialogues: [{
     order: 1, titleZh: '對話一', titleVi: 'Hội thoại I', audioCode: '01-1',
     lines: [{ order: 1, speakerZh: '明華', speakerPinyin: 'Mínghuá', textZh: '請問你是陳月美小姐嗎？', pinyin: 'Qǐngwèn nǐ shì Chén Yuèměi xiǎojiě ma?', translationVi: 'Xin hỏi bạn có phải là cô Trần Nguyệt Mỹ không?' }],

@@ -108,18 +108,6 @@ export default async function LessonDetailPage({ params }: Props) {
         <LessonStatusControls lessonId={lessonRow.id} status={lessonRow.status} />
       </div>
 
-      {lessonRow.objectives?.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-            Mục tiêu
-          </h2>
-          <ul className="list-inside list-disc space-y-1 text-sm text-foreground">
-            {lessonRow.objectives.map((objective, idx) => (
-              <li key={idx}>{objective}</li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       <section>
         <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">

@@ -15,7 +15,6 @@ export interface Lesson {
   title_zh: string
   title_vi: string
   theme: string | null
-  objectives: string[]
   status: LessonStatus
   created_at: string
 }

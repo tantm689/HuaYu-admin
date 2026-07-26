@@ -86,7 +86,6 @@ export default function JobReviewPage({ params }: Props) {
 
   const [isImporting, setIsImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
-  const [dialogueAudioFiles, setDialogueAudioFiles] = useState<Record<number, File>>({})
 
   const [numPagesRendered, setNumPagesRendered] = useState(0)
   const [pdfError, setPdfError] = useState<string | null>(null)
@@ -223,27 +222,11 @@ export default function JobReviewPage({ params }: Props) {
     }
   }
 
-  function handleDialogueAudioChange(dIdx: number, file: File | null) {
-    setDialogueAudioFiles((prev) => {
-      const next = { ...prev }
-      if (file) {
-        next[dIdx] = file
-      } else {
-        delete next[dIdx]
-      }
-      return next
-    })
-  }
-
   async function handleImport() {
     setIsImporting(true)
     setImportError(null)
     try {
-      const form = new FormData()
-      for (const file of Object.values(dialogueAudioFiles)) {
-        form.append("audioFiles", file, file.name)
-      }
-      const res = await fetch(`/api/jobs/${jobId}/import`, { method: "POST", body: form })
+      const res = await fetch(`/api/jobs/${jobId}/import`, { method: "POST" })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? "Nhập vào cơ sở dữ liệu thất bại.")
@@ -260,28 +243,6 @@ export default function JobReviewPage({ params }: Props) {
 
   function updateLesson(patch: Partial<ExtractionResult["lesson"]>) {
     setData((prev) => (prev ? { ...prev, lesson: { ...prev.lesson, ...patch } } : prev))
-  }
-
-  function updateObjective(idx: number, value: string) {
-    setData((prev) => {
-      if (!prev) return prev
-      const objectives = prev.lesson.objectives.map((o, i) => (i === idx ? value : o))
-      return { ...prev, lesson: { ...prev.lesson, objectives } }
-    })
-  }
-
-  function addObjective() {
-    setData((prev) =>
-      prev ? { ...prev, lesson: { ...prev.lesson, objectives: [...prev.lesson.objectives, ""] } } : prev
-    )
-  }
-
-  function removeObjective(idx: number) {
-    setData((prev) => {
-      if (!prev) return prev
-      const objectives = prev.lesson.objectives.filter((_, i) => i !== idx)
-      return { ...prev, lesson: { ...prev.lesson, objectives } }
-    })
   }
 
   function updateDialogue(dIdx: number, patch: Partial<Dialogue>) {
@@ -536,36 +497,6 @@ export default function JobReviewPage({ params }: Props) {
                     />
                   </div>
                 </div>
-
-                <div className="mt-4">
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <Label>Mục tiêu</Label>
-                    <Button type="button" variant="ghost" size="sm" onClick={addObjective}>
-                      + Thêm mục tiêu
-                    </Button>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {data.lesson.objectives.map((objective, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <Input
-                          value={objective}
-                          onChange={(e) => updateObjective(idx, e.target.value)}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeObjective(idx)}
-                        >
-                          Xoá
-                        </Button>
-                      </div>
-                    ))}
-                    {data.lesson.objectives.length === 0 && (
-                      <p className="text-xs text-muted-foreground">Chưa có mục tiêu nào.</p>
-                    )}
-                  </div>
-                </div>
               </section>
 
               <section className="rounded-lg border p-4">
@@ -606,27 +537,6 @@ export default function JobReviewPage({ params }: Props) {
                                 onChange={(e) => updateDialogue(dIdx, { audioCode: e.target.value || null })}
                               />
                             </div>
-                          </div>
-
-                          <div className="flex flex-col gap-1.5">
-                            <Label>File audio hội thoại (tuỳ chọn)</Label>
-                            <Input
-                              type="file"
-                              accept="audio/mpeg"
-                              onChange={(e) =>
-                                handleDialogueAudioChange(dIdx, e.target.files?.[0] ?? null)
-                              }
-                            />
-                            {dialogueAudioFiles[dIdx] ? (
-                              <p className="text-xs text-muted-foreground">
-                                Đã chọn: {dialogueAudioFiles[dIdx].name} — sẽ gắn vào hội thoại này khi Import.
-                              </p>
-                            ) : (
-                              <p className="text-xs text-muted-foreground">
-                                Chưa chọn file. Bạn cũng có thể gắn audio sau khi import ở trang &quot;Gắn audio hội
-                                thoại&quot;.
-                              </p>
-                            )}
                           </div>
 
                           <div className="flex flex-col gap-2">
