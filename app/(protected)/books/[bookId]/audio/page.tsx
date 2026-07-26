@@ -76,7 +76,7 @@ export default function DialogueAudioUploadPage({ params }: Props) {
             bỏ đuôi .mp3) với mã audio của hội thoại.
           </p>
         </div>
-        <Button variant="outline" render={<Link href={`/books/${bookId}`}>Quay lại</Link>} />
+        <Button variant="outline" nativeButton={false} render={<Link href={`/books/${bookId}`}>Quay lại</Link>} />
       </div>
 
       <Card>

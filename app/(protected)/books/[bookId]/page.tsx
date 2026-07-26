@@ -86,8 +86,8 @@ export default async function BookDetailPage({ params }: Props) {
           )}
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" render={<Link href={`/books/${bookId}/audio`}>Gắn audio hội thoại</Link>} />
-          <Button render={<Link href={`/books/${bookId}/jobs/new`}>Tạo bài học mới</Link>} />
+          <Button variant="outline" nativeButton={false} render={<Link href={`/books/${bookId}/audio`}>Gắn audio hội thoại</Link>} />
+          <Button nativeButton={false} render={<Link href={`/books/${bookId}/jobs/new`}>Tạo bài học mới</Link>} />
         </div>
       </div>
 

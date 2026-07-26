@@ -32,7 +32,7 @@ export default async function BooksPage() {
             Quản lý sách giáo khoa và các bài học được trích xuất.
           </p>
         </div>
-        <Button render={<Link href="/books/new">Thêm sách mới</Link>} />
+        <Button nativeButton={false} render={<Link href="/books/new">Thêm sách mới</Link>} />
       </div>
 
       {rows.length === 0 ? (
