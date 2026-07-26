@@ -1,6 +1,8 @@
+import Link from "next/link"
 import { notFound } from "next/navigation"
 import { createServerSupabase } from "@/lib/supabase/server"
 import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import {
   Accordion,
   AccordionContent,
@@ -105,7 +107,14 @@ export default async function LessonDetailPage({ params }: Props) {
             <p className="text-sm text-muted-foreground">{lessonRow.theme}</p>
           )}
         </div>
-        <LessonStatusControls lessonId={lessonRow.id} status={lessonRow.status} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            nativeButton={false}
+            render={<Link href={`/lessons/${lessonRow.id}/edit`}>Sửa</Link>}
+          />
+          <LessonStatusControls lessonId={lessonRow.id} status={lessonRow.status} />
+        </div>
       </div>
 
 
