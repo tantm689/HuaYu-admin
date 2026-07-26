@@ -47,7 +47,7 @@ vi.mock('@/lib/supabase/server', () => ({
             data: {
               id: 'job-1', book_id: 'book-1', status: 'reviewed', sliced_pdf_path: 'jobs/job-1.pdf',
               raw_json: {
-                lesson: { lessonNo: 1, titleZh: 'A', titleVi: 'B', theme: null },
+                lesson: { lessonNo: 1, titleZh: 'A', titleVi: 'B' },
                 dialogues: [{ order: 1, titleZh: null, titleVi: null, audioCode: '01-1', lines: [{ order: 1, speakerZh: null, speakerPinyin: null, textZh: 'x', pinyin: null, translationVi: null }] }],
                 vocabulary: [{ order: 1, wordZh: '你好', pinyin: 'nǐ hǎo', meaningVi: 'xin chào' }],
                 grammarPoints: [{ order: 1, titleZh: 'G1', titleVi: null, structureNote: null, examples: [{ order: 1, textZh: 'e', pinyin: null, translationVi: null }] }],

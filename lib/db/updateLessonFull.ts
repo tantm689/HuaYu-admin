@@ -35,7 +35,7 @@ export async function updateLessonFull(lessonId: string, rawPayload: unknown): P
 
   const { error: lessonError } = await supabase
     .from('lessons')
-    .update({ title_zh: payload.titleZh, title_vi: payload.titleVi, theme: payload.theme })
+    .update({ title_zh: payload.titleZh, title_vi: payload.titleVi })
     .eq('id', lessonId)
   if (lessonError) throw new Error(lessonError.message)
 

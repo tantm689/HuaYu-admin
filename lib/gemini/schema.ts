@@ -45,7 +45,6 @@ const LessonMetaSchema = z.object({
   lessonNo: z.number(),
   titleZh: z.string(),
   titleVi: z.string(),
-  theme: nullableString,
 })
 
 export const ExtractionResultSchema = z.object({
@@ -69,7 +68,6 @@ export const GEMINI_RESPONSE_SCHEMA = {
         lessonNo: { type: 'integer', description: 'Số thứ tự bài học, đúng bằng giá trị lessonNo được cung cấp trong yêu cầu.' },
         titleZh: { type: 'string', description: 'Tiêu đề bài học bằng chữ Hán, lấy nguyên văn từ đầu bài.' },
         titleVi: { type: 'string', description: 'Tiêu đề bài học dịch/ghi bằng tiếng Việt, lấy nguyên văn từ đầu bài nếu có.' },
-        theme: { type: 'string', nullable: true, description: 'Chủ đề của bài học nếu sách có ghi rõ (ví dụ chủ đề giao tiếp), null nếu không có.' },
       },
       required: ['lessonNo', 'titleZh', 'titleVi'],
     },

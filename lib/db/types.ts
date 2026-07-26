@@ -14,7 +14,6 @@ export interface Lesson {
   lesson_no: number
   title_zh: string
   title_vi: string
-  theme: string | null
   status: LessonStatus
   created_at: string
 }

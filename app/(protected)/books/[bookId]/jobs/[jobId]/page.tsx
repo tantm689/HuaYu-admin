@@ -488,14 +488,6 @@ export default function JobReviewPage({ params }: Props) {
                       onChange={(e) => updateLesson({ titleVi: e.target.value })}
                     />
                   </div>
-                  <div className="flex flex-col gap-1.5 sm:col-span-2">
-                    <Label htmlFor="theme">Chủ đề</Label>
-                    <Input
-                      id="theme"
-                      value={data.lesson.theme ?? ""}
-                      onChange={(e) => updateLesson({ theme: e.target.value || null })}
-                    />
-                  </div>
                 </div>
               </section>
 

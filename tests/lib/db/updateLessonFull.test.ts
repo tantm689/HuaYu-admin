@@ -135,7 +135,7 @@ describe('updateLessonFull', () => {
     lessonStatus = 'published'
     await expect(
       updateLessonFull('lesson-1', {
-        titleZh: 'A', titleVi: 'B', theme: null, dialogues: [], vocabulary: [], grammarPoints: [],
+        titleZh: 'A', titleVi: 'B', dialogues: [], vocabulary: [], grammarPoints: [],
       })
     ).rejects.toThrow(LessonNotEditableError)
     expect(lessonUpdateMock).not.toHaveBeenCalled()
@@ -143,14 +143,14 @@ describe('updateLessonFull', () => {
 
   it('updates lesson meta fields', async () => {
     await updateLessonFull('lesson-1', {
-      titleZh: 'A2', titleVi: 'B2', theme: null, dialogues: [], vocabulary: [], grammarPoints: [],
+      titleZh: 'A2', titleVi: 'B2', dialogues: [], vocabulary: [], grammarPoints: [],
     })
-    expect(lessonUpdateMock).toHaveBeenCalledWith({ title_zh: 'A2', title_vi: 'B2', theme: null })
+    expect(lessonUpdateMock).toHaveBeenCalledWith({ title_zh: 'A2', title_vi: 'B2' })
   })
 
   it('updates an existing dialogue and its lines in place, never touching audio_url', async () => {
     await updateLessonFull('lesson-1', {
-      titleZh: 'A', titleVi: 'B', theme: null,
+      titleZh: 'A', titleVi: 'B',
       dialogues: [{
         id: 'dlg-1', order: 1, titleZh: 'Z', titleVi: null, audioCode: '01-1',
         lines: [{ id: 'line-1', order: 1, speakerZh: null, speakerPinyin: null, textZh: 'hi', pinyin: null, translationVi: null }],
@@ -167,7 +167,7 @@ describe('updateLessonFull', () => {
 
   it('inserts a new dialogue (no id) and its lines', async () => {
     await updateLessonFull('lesson-1', {
-      titleZh: 'A', titleVi: 'B', theme: null,
+      titleZh: 'A', titleVi: 'B',
       dialogues: [
         { id: 'dlg-1', order: 1, titleZh: null, titleVi: null, audioCode: null, lines: [{ id: 'line-1', order: 1, speakerZh: null, speakerPinyin: null, textZh: 'x', pinyin: null, translationVi: null }] },
         { id: null, order: 2, titleZh: 'New', titleVi: null, audioCode: null, lines: [{ id: null, order: 1, speakerZh: null, speakerPinyin: null, textZh: 'new line', pinyin: null, translationVi: null }] },
@@ -180,7 +180,7 @@ describe('updateLessonFull', () => {
 
   it('deletes a dialogue missing from the payload and removes its audio file', async () => {
     await updateLessonFull('lesson-1', {
-      titleZh: 'A', titleVi: 'B', theme: null, dialogues: [], vocabulary: [], grammarPoints: [],
+      titleZh: 'A', titleVi: 'B', dialogues: [], vocabulary: [], grammarPoints: [],
     })
     expect(storageRemoveMock).toHaveBeenCalledWith(['dialogues/dlg-1.mp3'])
     expect(dialogueDeleteMock).toHaveBeenCalledWith(['dlg-1'])
@@ -188,7 +188,7 @@ describe('updateLessonFull', () => {
 
   it('updates an existing vocab entry without regenerating audio', async () => {
     await updateLessonFull('lesson-1', {
-      titleZh: 'A', titleVi: 'B', theme: null, dialogues: [],
+      titleZh: 'A', titleVi: 'B', dialogues: [],
       vocabulary: [{ id: 'vocab-1', order: 1, wordZh: '你好', pinyin: null, meaningVi: 'hi' }],
       grammarPoints: [],
     })
@@ -198,7 +198,7 @@ describe('updateLessonFull', () => {
 
   it('inserts a new vocab entry and generates its audio', async () => {
     await updateLessonFull('lesson-1', {
-      titleZh: 'A', titleVi: 'B', theme: null, dialogues: [],
+      titleZh: 'A', titleVi: 'B', dialogues: [],
       vocabulary: [
         { id: 'vocab-1', order: 1, wordZh: '你好', pinyin: null, meaningVi: null },
         { id: null, order: 2, wordZh: '謝謝', pinyin: null, meaningVi: 'cảm ơn' },
@@ -212,7 +212,7 @@ describe('updateLessonFull', () => {
 
   it('deletes a vocab entry missing from the payload and removes its audio file', async () => {
     await updateLessonFull('lesson-1', {
-      titleZh: 'A', titleVi: 'B', theme: null, dialogues: [], vocabulary: [], grammarPoints: [],
+      titleZh: 'A', titleVi: 'B', dialogues: [], vocabulary: [], grammarPoints: [],
     })
     expect(storageRemoveMock).toHaveBeenCalledWith(['vocab/vocab-1.mp3'])
     expect(vocabDeleteMock).toHaveBeenCalledWith(['vocab-1'])

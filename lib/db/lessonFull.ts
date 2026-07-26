@@ -52,7 +52,6 @@ const GrammarPointInput = z.object({
 export const LessonFullUpdateSchema = z.object({
   titleZh: z.string(),
   titleVi: z.string(),
-  theme: nullableString,
   dialogues: z.array(DialogueInput),
   vocabulary: z.array(VocabInput),
   grammarPoints: z.array(GrammarPointInput),

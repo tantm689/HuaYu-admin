@@ -13,7 +13,6 @@ export interface LessonFullView {
   lessonNo: number
   titleZh: string
   titleVi: string
-  theme: string | null
   status: Lesson['status']
   dialogues: {
     id: string
@@ -108,7 +107,6 @@ export async function getLessonFull(lessonId: string): Promise<LessonFullView | 
     lessonNo: lessonRow.lesson_no,
     titleZh: lessonRow.title_zh,
     titleVi: lessonRow.title_vi,
-    theme: lessonRow.theme,
     status: lessonRow.status,
     dialogues: dialogueRows.map((d) => ({
       id: d.id,

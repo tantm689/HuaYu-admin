@@ -101,7 +101,6 @@ export default function LessonEditPage({ params }: Props) {
       const payload = {
         titleZh: data.titleZh,
         titleVi: data.titleVi,
-        theme: data.theme,
         dialogues: data.dialogues.map((d) => ({ ...d, id: toApiId(d.id), lines: d.lines.map((l) => ({ ...l, id: toApiId(l.id) })) })),
         vocabulary: data.vocabulary.map((v) => ({ ...v, id: toApiId(v.id) })),
         grammarPoints: data.grammarPoints.map((g) => ({
@@ -128,7 +127,7 @@ export default function LessonEditPage({ params }: Props) {
     }
   }
 
-  function updateLesson(patch: Partial<Pick<LessonFullView, "titleZh" | "titleVi" | "theme">>) {
+  function updateLesson(patch: Partial<Pick<LessonFullView, "titleZh" | "titleVi">>) {
     setData((prev) => (prev ? { ...prev, ...patch } : prev))
   }
 
@@ -311,14 +310,6 @@ export default function LessonEditPage({ params }: Props) {
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="titleVi">Tiêu đề (Việt)</Label>
             <Input id="titleVi" value={data.titleVi} onChange={(e) => updateLesson({ titleVi: e.target.value })} />
-          </div>
-          <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <Label htmlFor="theme">Chủ đề</Label>
-            <Input
-              id="theme"
-              value={data.theme ?? ""}
-              onChange={(e) => updateLesson({ theme: e.target.value || null })}
-            />
           </div>
         </div>
       </section>
