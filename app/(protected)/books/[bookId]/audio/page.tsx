@@ -65,10 +65,12 @@ export default function DialogueAudioUploadPage({ params }: Props) {
   }
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 py-10">
+    <main className="mx-auto w-full max-w-2xl px-4 py-10 sm:px-6">
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold">Gắn audio hội thoại</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Gắn audio hội thoại
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Chọn nhiều file .mp3 — hệ thống sẽ tự khớp theo tên file (không phân biệt hoa/thường,
             bỏ đuôi .mp3) với mã audio của hội thoại.
@@ -124,7 +126,7 @@ export default function DialogueAudioUploadPage({ params }: Props) {
             </CardHeader>
             {result.unmatched.length > 0 && (
               <div className="flex flex-col gap-2 px-6 pb-6">
-                <p className="text-sm font-medium">
+                <p className="text-sm font-medium text-foreground">
                   Không khớp được ({result.unmatched.length}) — đổi tên file rồi thử lại:
                 </p>
                 <ul className="list-inside list-disc text-sm text-muted-foreground">
