@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 let jobStatus = 'pending'
-const singleMock = vi.fn(() => Promise.resolve({ data: { id: 'job-1', status: jobStatus, raw_json: { lesson: { lessonNo: 1 } } }, error: null }))
+const singleMock = vi.fn(() => Promise.resolve({ data: { id: 'job-1', status: jobStatus, book_id: 'book-1', raw_json: { lesson: { lessonNo: 1 } } }, error: null }))
 const eqUpdateMock = vi.fn().mockResolvedValue({ error: null })
 const updateMock = vi.fn().mockReturnValue({ eq: eqUpdateMock })
 
@@ -11,10 +11,19 @@ vi.mock('@/lib/supabase/requireAdmin', () => ({
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabase: () => ({
-    from: () => ({
-      select: () => ({ eq: () => ({ single: singleMock }) }),
-      update: updateMock,
-    }),
+    from: (table: string) => {
+      if (table === 'extraction_jobs') {
+        return {
+          select: () => ({ eq: () => ({ single: singleMock }) }),
+          update: updateMock,
+        }
+      }
+      if (table === 'lessons') {
+        // No existing lesson for this (book_id, lessonNo) in these tests.
+        return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }) }) }
+      }
+      return { select: () => ({ eq: () => Promise.resolve({ count: 0 }) }) }
+    },
   }),
 }))
 

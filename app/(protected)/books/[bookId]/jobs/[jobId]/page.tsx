@@ -16,7 +16,10 @@ import {
 import { waitForCanvasRef } from "@/lib/pdf/waitForCanvasRef"
 import type { ExtractionJob, JobStatus } from "@/lib/db/types"
 import type { ExtractionResult } from "@/lib/gemini/schema"
+import type { ExistingLessonSummary } from "@/lib/db/checkExistingLesson"
 import type { VariantProps } from "class-variance-authority"
+
+type JobWithExistingLesson = ExtractionJob & { existingLesson: ExistingLessonSummary | null }
 
 type BadgeVariant = VariantProps<typeof badgeVariants>["variant"]
 
@@ -72,7 +75,7 @@ export default function JobReviewPage({ params }: Props) {
   const { bookId, jobId } = use(params)
   const router = useRouter()
 
-  const [job, setJob] = useState<ExtractionJob | null>(null)
+  const [job, setJob] = useState<JobWithExistingLesson | null>(null)
   const [data, setData] = useState<ExtractionResult | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -101,7 +104,7 @@ export default function JobReviewPage({ params }: Props) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? "Không tải được công việc trích xuất.")
       }
-      const jobData: ExtractionJob = await res.json()
+      const jobData: JobWithExistingLesson = await res.json()
       setJob(jobData)
       if (jobData.raw_json) {
         setData(jobData.raw_json as ExtractionResult)
@@ -223,6 +226,16 @@ export default function JobReviewPage({ params }: Props) {
   }
 
   async function handleImport() {
+    if (job?.existingLesson) {
+      const { titleVi, titleZh, dialogueCount, vocabularyCount, grammarPointCount } = job.existingLesson
+      const confirmed = window.confirm(
+        `Bài "${titleVi || titleZh}" đã tồn tại (${dialogueCount} hội thoại, ${vocabularyCount} từ vựng, ` +
+          `${grammarPointCount} điểm ngữ pháp). Import bây giờ sẽ XOÁ TOÀN BỘ bài cũ này (kể cả audio đã gắn) ` +
+          `và thay bằng dữ liệu vừa trích xuất. Bạn có chắc chắn muốn tiếp tục?`
+      )
+      if (!confirmed) return
+    }
+
     setIsImporting(true)
     setImportError(null)
     try {
@@ -445,6 +458,19 @@ export default function JobReviewPage({ params }: Props) {
         <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
           <p className="text-sm font-medium text-destructive">Trích xuất thất bại</p>
           <p className="mt-1 text-sm text-muted-foreground">{job.error_message}</p>
+        </div>
+      )}
+
+      {job.existingLesson && (
+        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+          <p className="text-sm font-medium text-destructive">
+            Bài &quot;{job.existingLesson.titleVi || job.existingLesson.titleZh}&quot; đã tồn tại
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            ({job.existingLesson.dialogueCount} hội thoại, {job.existingLesson.vocabularyCount} từ vựng,{" "}
+            {job.existingLesson.grammarPointCount} điểm ngữ pháp). Bấm &quot;Import vào DB&quot; sẽ{" "}
+            <strong>xoá toàn bộ bài cũ này (kể cả audio đã gắn)</strong> và thay bằng dữ liệu vừa trích xuất.
+          </p>
         </div>
       )}
 

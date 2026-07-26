@@ -29,6 +29,34 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
 
   const result = ExtractionResultSchema.parse(job.raw_json)
 
+  // Overwrite mode: the admin already confirmed (client-side, before calling
+  // this) that a lesson for this book_id+lesson_no exists and should be
+  // replaced - e.g. re-extracting a lesson with an improved prompt. Delete
+  // its audio files first since the DB cascade on lesson delete won't touch
+  // storage, then delete the lesson row itself (cascades its children).
+  const { data: existing } = await supabase
+    .from('lessons')
+    .select('id')
+    .eq('book_id', job.book_id)
+    .eq('lesson_no', result.lesson.lessonNo)
+    .maybeSingle()
+
+  if (existing) {
+    const [{ data: oldDialogues }, { data: oldVocab }] = await Promise.all([
+      supabase.from('dialogues').select('id').eq('lesson_id', existing.id),
+      supabase.from('vocabulary').select('id').eq('lesson_id', existing.id),
+    ])
+    const audioPaths = [
+      ...(oldDialogues ?? []).map((d: { id: string }) => `dialogues/${d.id}.mp3`),
+      ...(oldVocab ?? []).map((v: { id: string }) => `vocab/${v.id}.mp3`),
+    ]
+    if (audioPaths.length > 0) {
+      await supabase.storage.from('audio').remove(audioPaths)
+    }
+    const { error: deleteError } = await supabase.from('lessons').delete().eq('id', existing.id)
+    if (deleteError) throw new Error(deleteError.message)
+  }
+
   const { data: lesson, error: lessonError } = await supabase
     .from('lessons')
     .insert({

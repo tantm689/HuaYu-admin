@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/supabase/requireAdmin'
+import { checkExistingLesson } from '@/lib/db/checkExistingLesson'
 
 export async function GET(
   request: Request,
@@ -16,7 +17,14 @@ export async function GET(
   if (error || !data) {
     return NextResponse.json({ error: 'job not found' }, { status: 404 })
   }
-  return NextResponse.json(data)
+
+  const lessonNo = (data.raw_json as { lesson?: { lessonNo?: number } } | null)?.lesson?.lessonNo
+  const existingLesson =
+    data.status !== 'imported' && typeof lessonNo === 'number'
+      ? await checkExistingLesson(data.book_id, lessonNo)
+      : null
+
+  return NextResponse.json({ ...data, existingLesson })
 }
 
 export async function PATCH(
