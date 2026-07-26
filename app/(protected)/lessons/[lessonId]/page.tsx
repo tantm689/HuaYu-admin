@@ -108,11 +108,13 @@ export default async function LessonDetailPage({ params }: Props) {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            nativeButton={false}
-            render={<Link href={`/lessons/${lessonRow.id}/edit`}>Sửa</Link>}
-          />
+          {lessonRow.status === "draft" && (
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={<Link href={`/lessons/${lessonRow.id}/edit`}>Sửa</Link>}
+            />
+          )}
           <LessonStatusControls lessonId={lessonRow.id} status={lessonRow.status} />
         </div>
       </div>

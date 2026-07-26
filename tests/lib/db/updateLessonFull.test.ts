@@ -42,6 +42,8 @@ const existing = {
   grammar_examples: [] as { id: string }[],
 }
 
+let lessonStatus: string = 'draft'
+
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabase: () => ({
     from: (table: string) => ({
@@ -81,7 +83,15 @@ vi.mock('@/lib/supabase/server', () => ({
         },
       }),
       select: () => ({
-        eq: () => Promise.resolve({ data: (existing as any)[table] ?? [] }),
+        eq: () => {
+          // Real usage forks here: lessons.select('status').eq(...).single()
+          // awaits the .single() call, while the child-table lookups
+          // (dialogues/vocabulary/etc.) await the eq() result directly. This
+          // fake needs to satisfy both call shapes.
+          const promise: any = Promise.resolve({ data: (existing as any)[table] ?? [] })
+          promise.single = () => Promise.resolve({ data: { status: lessonStatus }, error: null })
+          return promise
+        },
         in: () => Promise.resolve({ data: (existing as any)[table] ?? [] }),
       }),
     }),
@@ -101,10 +111,11 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }))
 
-import { updateLessonFull } from '@/lib/db/updateLessonFull'
+import { updateLessonFull, LessonNotEditableError } from '@/lib/db/updateLessonFull'
 
 describe('updateLessonFull', () => {
   beforeEach(() => {
+    lessonStatus = 'draft'
     lessonUpdateMock.mockClear()
     dialogueUpdateMock.mockClear()
     dialogueInsertMock.mockClear()
@@ -118,6 +129,16 @@ describe('updateLessonFull', () => {
     generateVocabAudioMock.mockClear()
     storageUploadMock.mockClear()
     storageRemoveMock.mockClear()
+  })
+
+  it('rejects edits when the lesson is not in draft status', async () => {
+    lessonStatus = 'published'
+    await expect(
+      updateLessonFull('lesson-1', {
+        titleZh: 'A', titleVi: 'B', theme: null, dialogues: [], vocabulary: [], grammarPoints: [],
+      })
+    ).rejects.toThrow(LessonNotEditableError)
+    expect(lessonUpdateMock).not.toHaveBeenCalled()
   })
 
   it('updates lesson meta fields', async () => {

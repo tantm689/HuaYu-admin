@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getLessonFull } from '@/lib/db/getLessonFull'
-import { updateLessonFull } from '@/lib/db/updateLessonFull'
+import { updateLessonFull, LessonNotEditableError } from '@/lib/db/updateLessonFull'
 import { requireAdmin } from '@/lib/supabase/requireAdmin'
 
 export async function GET(
@@ -31,6 +31,9 @@ export async function PATCH(
     await updateLessonFull(lessonId, body)
     return NextResponse.json({ ok: true })
   } catch (err) {
+    if (err instanceof LessonNotEditableError) {
+      return NextResponse.json({ error: err.message }, { status: 400 })
+    }
     const message = err instanceof Error ? err.message : 'unknown update error'
     return NextResponse.json({ error: message }, { status: 500 })
   }

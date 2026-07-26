@@ -4,6 +4,8 @@ import { LessonFullUpdateSchema, type LessonFullUpdate } from '@/lib/db/lessonFu
 
 const VOCAB_TTS_TIMEOUT_MS = 15_000
 
+export class LessonNotEditableError extends Error {}
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   return Promise.race([
     promise,
@@ -20,6 +22,16 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string)
 export async function updateLessonFull(lessonId: string, rawPayload: unknown): Promise<void> {
   const payload: LessonFullUpdate = LessonFullUpdateSchema.parse(rawPayload)
   const supabase = createServerSupabase()
+
+  const { data: currentLesson, error: fetchError } = await supabase
+    .from('lessons')
+    .select('status')
+    .eq('id', lessonId)
+    .single()
+  if (fetchError || !currentLesson) throw new Error(fetchError?.message ?? 'lesson not found')
+  if (currentLesson.status !== 'draft') {
+    throw new LessonNotEditableError('Bài học phải ở trạng thái Nháp mới được sửa. Hãy "Chuyển về nháp" trước.')
+  }
 
   const { error: lessonError } = await supabase
     .from('lessons')

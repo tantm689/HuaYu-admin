@@ -270,6 +270,19 @@ export default function LessonEditPage({ params }: Props) {
     )
   }
 
+  if (data.status !== "draft") {
+    return (
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-10">
+        <p role="alert" className="text-sm text-destructive">
+          Bài học phải ở trạng thái Nháp mới được sửa. Vào trang bài học và bấm &quot;Chuyển về nháp&quot; trước.
+        </p>
+        <Button variant="outline" nativeButton={false} onClick={() => router.push(`/lessons/${lessonId}`)}>
+          Quay lại
+        </Button>
+      </main>
+    )
+  }
+
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 pb-16">
       <div className="sticky top-0 z-10 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80">
