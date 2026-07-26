@@ -192,15 +192,17 @@ export default function NewJobPage({ params }: Props) {
 
   return (
     <main className="flex min-h-full flex-col">
-      <div className="flex-1 overflow-y-auto px-4 pt-8 pb-40">
+      <div className="flex-1 overflow-y-auto px-4 pt-8 pb-40 sm:px-6">
         <div className="mx-auto w-full max-w-5xl">
-          <h1 className="mb-1 text-xl font-semibold">Chọn khoảng trang</h1>
+          <h1 className="mb-1 text-2xl font-semibold tracking-tight text-foreground">
+            Chọn khoảng trang
+          </h1>
           <p className="mb-6 text-sm text-muted-foreground">
             Chọn tệp PDF của sách từ máy tính, sau đó nhấp một trang để bắt đầu, nhấp trang khác để kết thúc khoảng. Nhấp lại để chọn khoảng mới.
           </p>
 
           <div className="mb-6 flex flex-col gap-1.5">
-            <label htmlFor="pdfFile" className="text-sm font-medium">
+            <label htmlFor="pdfFile" className="text-sm font-medium text-foreground">
               Tệp PDF sách giáo khoa
             </label>
             <Input

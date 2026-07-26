@@ -6,16 +6,26 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Badge, type badgeVariants } from "@/components/ui/badge"
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { cn } from "@/lib/utils"
 import { waitForCanvasRef } from "@/lib/pdf/waitForCanvasRef"
 import type { ExtractionJob, JobStatus } from "@/lib/db/types"
 import type { ExtractionResult } from "@/lib/gemini/schema"
+import type { VariantProps } from "class-variance-authority"
+
+type BadgeVariant = VariantProps<typeof badgeVariants>["variant"]
+
+const jobStatusVariant: Record<JobStatus, BadgeVariant> = {
+  pending: "pending",
+  reviewed: "info",
+  imported: "success",
+  failed: "destructive",
+}
 
 type PdfDocumentProxy = import("pdfjs-dist").PDFDocumentProxy
 
@@ -399,25 +409,17 @@ export default function JobReviewPage({ params }: Props) {
     <main className="mx-auto flex w-full max-w-[1400px] flex-col px-4 py-6">
       <div className="sticky top-0 z-10 -mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80">
         <div>
-          <h1 className="text-lg font-semibold">
+          <h1 className="text-lg font-semibold tracking-tight text-foreground">
             Bài {job.lesson_no} · Trang {job.page_start}–{job.page_end}
           </h1>
-          <span
-            className={cn(
-              "inline-block rounded-full px-2 py-0.5 text-xs font-medium",
-              job.status === "failed" && "bg-destructive/15 text-destructive",
-              job.status === "pending" && "bg-muted text-muted-foreground",
-              job.status === "reviewed" && "bg-primary/15 text-primary",
-              job.status === "imported" && "bg-emerald-500/15 text-emerald-600"
-            )}
-          >
+          <Badge variant={jobStatusVariant[job.status]} className="mt-1">
             {jobStatusLabel[job.status]}
-          </span>
+          </Badge>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {saveError && <p className="text-sm text-destructive">{saveError}</p>}
-          {saveSuccess && <p className="text-sm text-emerald-600">Đã lưu.</p>}
+          {saveSuccess && <p className="text-sm text-status-success">Đã lưu.</p>}
           {job.status === "pending" && !job.raw_json && (
             <Button variant="outline" onClick={handleRetry} disabled={isRetrying}>
               {isRetrying ? "Đang trích xuất..." : "Trích xuất nội dung"}

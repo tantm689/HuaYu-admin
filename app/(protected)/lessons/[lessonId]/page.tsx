@@ -95,10 +95,10 @@ export default async function LessonDetailPage({ params }: Props) {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10">
-      <div className="sticky top-0 z-10 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80">
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10 sm:px-6">
+      <div className="sticky top-0 z-10 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 sm:-mx-6 sm:px-6">
         <div>
-          <h1 className="text-lg font-semibold">
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
             Bài {lessonRow.lesson_no}: {lessonRow.title_vi || lessonRow.title_zh}
           </h1>
           {lessonRow.theme && (
@@ -110,8 +110,10 @@ export default async function LessonDetailPage({ params }: Props) {
 
       {lessonRow.objectives?.length > 0 && (
         <section>
-          <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Mục tiêu</h2>
-          <ul className="list-inside list-disc space-y-1 text-sm">
+          <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+            Mục tiêu
+          </h2>
+          <ul className="list-inside list-disc space-y-1 text-sm text-foreground">
             {lessonRow.objectives.map((objective, idx) => (
               <li key={idx}>{objective}</li>
             ))}
@@ -120,7 +122,9 @@ export default async function LessonDetailPage({ params }: Props) {
       )}
 
       <section>
-        <h2 className="mb-3 text-base font-semibold">Bài khoá ({dialogueRows.length})</h2>
+        <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+          Bài khoá ({dialogueRows.length})
+        </h2>
         {dialogueRows.length === 0 ? (
           <p className="text-sm text-muted-foreground">Chưa có bài khoá nào.</p>
         ) : (
@@ -183,7 +187,9 @@ export default async function LessonDetailPage({ params }: Props) {
       </section>
 
       <section>
-        <h2 className="mb-3 text-base font-semibold">Từ vựng ({vocabRows.length})</h2>
+        <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+          Từ vựng ({vocabRows.length})
+        </h2>
         {vocabRows.length === 0 ? (
           <p className="text-sm text-muted-foreground">Chưa có từ vựng nào.</p>
         ) : (
@@ -211,7 +217,9 @@ export default async function LessonDetailPage({ params }: Props) {
       </section>
 
       <section>
-        <h2 className="mb-3 text-base font-semibold">Ngữ pháp ({grammarRows.length})</h2>
+        <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+          Ngữ pháp ({grammarRows.length})
+        </h2>
         {grammarRows.length === 0 ? (
           <p className="text-sm text-muted-foreground">Chưa có điểm ngữ pháp nào.</p>
         ) : (

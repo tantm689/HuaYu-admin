@@ -3,18 +3,27 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { Badge, type badgeVariants } from "@/components/ui/badge"
 import type { LessonStatus } from "@/lib/db/types"
+import type { VariantProps } from "class-variance-authority"
 
 interface Props {
   lessonId: string
   status: LessonStatus
 }
 
+type BadgeVariant = VariantProps<typeof badgeVariants>["variant"]
+
 const statusLabel: Record<LessonStatus, string> = {
   draft: "Nháp",
   reviewed: "Đã duyệt",
   published: "Đã xuất bản",
+}
+
+const statusVariant: Record<LessonStatus, BadgeVariant> = {
+  draft: "pending",
+  reviewed: "info",
+  published: "success",
 }
 
 export function LessonStatusControls({ lessonId, status }: Props) {
@@ -46,16 +55,7 @@ export function LessonStatusControls({ lessonId, status }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <span
-        className={cn(
-          "inline-block rounded-full px-2 py-0.5 text-xs font-medium",
-          status === "draft" && "bg-muted text-muted-foreground",
-          status === "reviewed" && "bg-primary/15 text-primary",
-          status === "published" && "bg-emerald-500/15 text-emerald-600"
-        )}
-      >
-        {statusLabel[status]}
-      </span>
+      <Badge variant={statusVariant[status]}>{statusLabel[status]}</Badge>
 
       {status === "draft" && (
         <Button size="sm" onClick={() => transition("reviewed")} disabled={isUpdating}>
