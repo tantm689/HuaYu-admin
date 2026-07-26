@@ -408,9 +408,11 @@ export default function JobReviewPage({ params }: Props) {
               {isRetrying ? "Đang thử lại..." : "Thử lại"}
             </Button>
           )}
-          <Button onClick={handleSave} disabled={isSaving || !data}>
-            {isSaving ? "Đang lưu..." : "Lưu"}
-          </Button>
+          {job.status !== "imported" && (
+            <Button onClick={handleSave} disabled={isSaving || !data}>
+              {isSaving ? "Đang lưu..." : "Lưu"}
+            </Button>
+          )}
           {job.status === "reviewed" && (
             <Button variant="outline" onClick={handleImport} disabled={isImporting}>
               {isImporting ? "Đang nhập..." : "Import vào DB"}
@@ -428,6 +430,15 @@ export default function JobReviewPage({ params }: Props) {
         <p role="alert" className="mb-4 text-sm text-destructive">
           {importError}
         </p>
+      )}
+
+      {job.status === "imported" && (
+        <div className="mb-4 rounded-lg border bg-muted/30 p-4">
+          <p className="text-sm text-muted-foreground">
+            Công việc này đã được nhập vào cơ sở dữ liệu. Muốn sửa nội dung, vào trang bài học tương ứng và bấm
+            &quot;Sửa&quot; (bài học phải ở trạng thái Nháp).
+          </p>
+        </div>
       )}
 
       {job.status === "failed" && (
@@ -464,7 +475,10 @@ export default function JobReviewPage({ params }: Props) {
         </div>
 
         {/* Right column: editable extraction form */}
-        <div className="flex flex-col gap-6 pb-16">
+        <fieldset
+          disabled={job.status === "imported"}
+          className="m-0 min-w-0 flex-col gap-6 border-0 p-0 pb-16 flex"
+        >
           {!data ? (
             <p className="text-sm text-muted-foreground">Chưa có dữ liệu trích xuất.</p>
           ) : (
@@ -758,7 +772,7 @@ export default function JobReviewPage({ params }: Props) {
               </section>
             </>
           )}
-        </div>
+        </fieldset>
       </div>
     </main>
   )

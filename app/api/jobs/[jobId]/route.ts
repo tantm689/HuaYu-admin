@@ -30,6 +30,23 @@ export async function PATCH(
   const { raw_json } = await request.json()
   const supabase = createServerSupabase()
 
+  const { data: job, error: jobError } = await supabase
+    .from('extraction_jobs')
+    .select('status')
+    .eq('id', jobId)
+    .single()
+
+  if (jobError || !job) {
+    return NextResponse.json({ error: 'job not found' }, { status: 404 })
+  }
+
+  if (job.status === 'imported') {
+    return NextResponse.json(
+      { error: 'Công việc này đã được nhập vào cơ sở dữ liệu rồi, không thể sửa lại ở đây.' },
+      { status: 400 }
+    )
+  }
+
   const { error } = await supabase
     .from('extraction_jobs')
     .update({ raw_json, status: 'reviewed' })

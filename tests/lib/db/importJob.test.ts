@@ -14,6 +14,8 @@ const {
 
 vi.mock('@/lib/tts/edgeTts', () => ({ generateVocabAudio: generateVocabAudioMock }))
 
+let jobStatus = 'reviewed'
+
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabase: () => ({
     from: (table: string) => {
@@ -45,7 +47,7 @@ vi.mock('@/lib/supabase/server', () => ({
         return {
           select: () => ({ eq: () => ({ single: () => Promise.resolve({
             data: {
-              id: 'job-1', book_id: 'book-1', status: 'reviewed', sliced_pdf_path: 'jobs/job-1.pdf',
+              id: 'job-1', book_id: 'book-1', status: jobStatus, sliced_pdf_path: 'jobs/job-1.pdf',
               raw_json: {
                 lesson: { lessonNo: 1, titleZh: 'A', titleVi: 'B' },
                 dialogues: [{ order: 1, titleZh: null, titleVi: null, audioCode: '01-1', lines: [{ order: 1, speakerZh: null, speakerPinyin: null, textZh: 'x', pinyin: null, translationVi: null }] }],
@@ -78,14 +80,21 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }))
 
-import { importExtractionJob } from '@/lib/db/importJob'
+import { importExtractionJob, JobAlreadyImportedError } from '@/lib/db/importJob'
 
 describe('importExtractionJob', () => {
   beforeEach(() => {
+    jobStatus = 'reviewed'
     insertLessonMock.mockClear()
     generateVocabAudioMock.mockClear()
     storageRemoveMock.mockClear()
     extractionJobsUpdateMock.mockClear()
+  })
+
+  it('rejects re-importing a job that is already imported', async () => {
+    jobStatus = 'imported'
+    await expect(importExtractionJob('job-1')).rejects.toThrow(JobAlreadyImportedError)
+    expect(insertLessonMock).not.toHaveBeenCalled()
   })
 
   it('writes lesson, dialogues, vocabulary (with generated audio), and grammar', async () => {

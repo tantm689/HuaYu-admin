@@ -4,6 +4,8 @@ import { ExtractionResultSchema } from '@/lib/gemini/schema'
 
 const VOCAB_TTS_TIMEOUT_MS = 15_000
 
+export class JobAlreadyImportedError extends Error {}
+
 export async function importExtractionJob(jobId: string): Promise<{ lessonId: string }> {
   const supabase = createServerSupabase()
 
@@ -15,6 +17,14 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
 
   if (jobError || !job) {
     throw new Error('extraction job not found')
+  }
+
+  if (job.status === 'imported') {
+    // Re-importing would try to INSERT a lesson that already exists (unique
+    // book_id+lesson_no), and would blow away any post-import edits made via
+    // the lesson editor. Once imported, further changes go through
+    // /lessons/[lessonId]/edit instead.
+    throw new JobAlreadyImportedError('Công việc này đã được nhập vào cơ sở dữ liệu rồi, không thể nhập lại.')
   }
 
   const result = ExtractionResultSchema.parse(job.raw_json)
