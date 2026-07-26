@@ -2293,6 +2293,29 @@ If Gemini consistently misreads specific fields (e.g. zhuyin columns), note it �
 
 ---
 
+## Task 19: Full UI design pass with ui-ux-pro-max across every screen
+
+**User feedback (from a real browser screenshot):** the app is functionally working (books list renders, real data loads) but visually it's bare/default-looking — plain black-on-white cards, no real design system. The project's standing preference is to invoke the `ui-ux-pro-max` skill for **all** UI work in this project, not just the visually-complex screens. Earlier tasks (6, 3, 12) explicitly skipped invoking it for "simple" screens (login, book list/new, audio upload) on the reasoning that they were low-complexity CRUD forms — that reasoning was wrong per the user's actual preference; every screen should get a real design pass.
+
+**Scope:** apply one cohesive design system (color palette, typography, spacing scale, component styling — chosen via `ui-ux-pro-max`) across every screen in the app, not each screen ad hoc with a different look. Screens to redesign:
+- `app/login/page.tsx`
+- `app/(protected)/layout.tsx` (the shared nav shell — this sets the tone for every other page)
+- `app/(protected)/books/page.tsx`
+- `app/(protected)/books/new/page.tsx`
+- `app/(protected)/books/[bookId]/page.tsx`
+- `app/(protected)/books/[bookId]/jobs/new/page.tsx` (already had a `ui-ux-pro-max` pass in Task 7 — refine/align it to the new shared design system rather than rebuilding from scratch, but do verify it still fits once the rest of the app has a real design language)
+- `app/(protected)/books/[bookId]/jobs/[jobId]/page.tsx` (same — had a pass in Task 9, align to the shared system)
+- `app/(protected)/books/[bookId]/audio/page.tsx`
+- `app/(protected)/lessons/[lessonId]/page.tsx` (had a pass in Task 13 — align to the shared system)
+
+**Process:** invoke the `ui-ux-pro-max` skill ONCE at the start to establish the shared design system (palette, typography, spacing, core component look for buttons/cards/inputs/badges), then apply that same system consistently across every screen above — this should read as one designed product, not nine independently-styled pages. Keep all existing Vietnamese labels and all existing functional behavior (form fields, buttons, interactions, state machines like the page-range picker's click-to-select) exactly as they are — this is a visual/styling pass only, not a UX or functionality change. Don't remove or rename any data-bearing element (input names, IDs used by tests, etc.) in a way that breaks existing tests.
+
+**Testing:** this is UI-only — no new business logic, so existing tests should mostly be unaffected. If any test does snapshot/DOM-structure assertions that break from styling changes (unlikely given this codebase's tests are mostly API/lib-level, not component-level), fix them to match the new structure without weakening what they verify. Run `npx tsc --noEmit`, full `npm run test`, `npm run build`, `npm run lint` — all clean at the end.
+
+**Note:** the app has no automated visual verification in this environment (no headless browser). The human operator will do a real browser click-through after this task lands and report back if anything looks wrong or broken.
+
+---
+
 ## Self-Review Notes
 
 - **Spec coverage:** upload/storage (Task 6), page-range extraction job creation (Task 7), slicing (Task 4), Gemini extraction restricted to dialogues/official-vocab/grammar-without-exercises (Task 5), review+edit UI (Task 9), import with duplicate `lesson_no` handled by the DB's `unique (book_id, lesson_no)` constraint surfacing as a Postgres error the import route returns as a 500 with message (admin sees it and can decide to edit `lessonNo` before retrying), vocabulary TTS (Task 11) wired non-blocking into import (Task 10), dialogue audio bulk upload matched by `audio_code` (Task 12), publish workflow (Task 13), single-admin auth (Task 3), Gemini model pinned to `gemini-3.5-flash-lite` (Task 5). All covered.
