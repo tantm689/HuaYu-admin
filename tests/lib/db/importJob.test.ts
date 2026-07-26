@@ -124,6 +124,11 @@ describe('importExtractionJob', () => {
     expect(dialogueUpdateMock).toHaveBeenCalledWith({ audio_url: 'https://x/f.mp3' })
   })
 
+  it('uploads a dialogue audio file whose zero-padding differs from the audio code', async () => {
+    await importExtractionJob('job-1', [{ filename: '01-01.mp3', buffer: new ArrayBuffer(4) }])
+    expect(dialogueUpdateMock).toHaveBeenCalledWith({ audio_url: 'https://x/f.mp3' })
+  })
+
   it('does not upload dialogue audio when no filename matches the audio code', async () => {
     await importExtractionJob('job-1', [{ filename: '99-9.mp3', buffer: new ArrayBuffer(4) }])
     expect(dialogueUpdateMock).not.toHaveBeenCalled()

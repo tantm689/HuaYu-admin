@@ -1,7 +1,7 @@
 import { createServerSupabase } from '@/lib/supabase/server'
 import { generateVocabAudio } from '@/lib/tts/edgeTts'
 import { ExtractionResultSchema } from '@/lib/gemini/schema'
-import { stripExtension } from '@/lib/audio/matchDialogueAudio'
+import { stripExtension, normalizeAudioCode } from '@/lib/audio/matchDialogueAudio'
 
 const VOCAB_TTS_TIMEOUT_MS = 15_000
 
@@ -29,7 +29,7 @@ export async function importExtractionJob(
   const result = ExtractionResultSchema.parse(job.raw_json)
 
   const audioByCode = new Map(
-    dialogueAudioFiles.map((f) => [stripExtension(f.filename).toLowerCase(), f])
+    dialogueAudioFiles.map((f) => [normalizeAudioCode(stripExtension(f.filename).toLowerCase()), f])
   )
 
   const { data: lesson, error: lessonError } = await supabase
@@ -66,7 +66,9 @@ export async function importExtractionJob(
 
       if (dlgError || !dlgRow) throw new Error(dlgError?.message ?? 'failed to insert dialogue')
 
-      const audioFile = dialogue.audioCode ? audioByCode.get(dialogue.audioCode.toLowerCase()) : undefined
+      const audioFile = dialogue.audioCode
+        ? audioByCode.get(normalizeAudioCode(dialogue.audioCode.toLowerCase()))
+        : undefined
       if (audioFile) {
         try {
           const path = `dialogues/${dlgRow.id}.mp3`

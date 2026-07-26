@@ -21,4 +21,10 @@ describe('matchFilesToDialogues', () => {
     expect(matched).toEqual([])
     expect(unmatched).toEqual(['99-9.mp3'])
   })
+
+  it('matches filenames whose zero-padding differs from the printed audio_code', () => {
+    const { matched, unmatched } = matchFilesToDialogues(['01-03.mp3'], dialogues)
+    expect(matched).toEqual([{ dialogueId: 'd2', filename: '01-03.mp3' }])
+    expect(unmatched).toEqual([])
+  })
 })
