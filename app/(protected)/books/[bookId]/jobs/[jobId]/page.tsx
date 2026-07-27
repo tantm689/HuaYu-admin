@@ -148,10 +148,19 @@ export default function JobReviewPage({ params }: Props) {
         }
         const { signedUrl } = await res.json()
 
+        // Fetch the whole file up front instead of handing pdf.js the URL
+        // directly - pdf.js otherwise streams it via internal Range
+        // requests, which can stall or crawl if the storage CDN doesn't
+        // handle Range well, with no visible feedback while it happens.
+        const pdfRes = await fetch(signedUrl)
+        if (!pdfRes.ok) throw new Error("Không tải được PDF.")
+        const pdfBytes = await pdfRes.arrayBuffer()
+        if (cancelled) return
+
         const pdfjsLib = await import("pdfjs-dist")
         pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"
 
-        loadingTask = pdfjsLib.getDocument({ url: signedUrl })
+        loadingTask = pdfjsLib.getDocument({ data: pdfBytes })
         doc = await loadingTask.promise
         if (cancelled || !doc) return
 
