@@ -258,6 +258,28 @@ export default function JobReviewPage({ params }: Props) {
     setData((prev) => (prev ? { ...prev, lesson: { ...prev.lesson, ...patch } } : prev))
   }
 
+  function updateObjective(idx: number, value: string) {
+    setData((prev) => {
+      if (!prev) return prev
+      const objectives = prev.lesson.objectives.map((o, i) => (i === idx ? value : o))
+      return { ...prev, lesson: { ...prev.lesson, objectives } }
+    })
+  }
+
+  function addObjective() {
+    setData((prev) =>
+      prev ? { ...prev, lesson: { ...prev.lesson, objectives: [...prev.lesson.objectives, ""] } } : prev
+    )
+  }
+
+  function removeObjective(idx: number) {
+    setData((prev) => {
+      if (!prev) return prev
+      const objectives = prev.lesson.objectives.filter((_, i) => i !== idx)
+      return { ...prev, lesson: { ...prev.lesson, objectives } }
+    })
+  }
+
   function updateDialogue(dIdx: number, patch: Partial<Dialogue>) {
     setData((prev) => {
       if (!prev) return prev
@@ -527,6 +549,36 @@ export default function JobReviewPage({ params }: Props) {
                       value={data.lesson.titleVi}
                       onChange={(e) => updateLesson({ titleVi: e.target.value })}
                     />
+                  </div>
+                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+                    <Label htmlFor="theme">Chủ đề</Label>
+                    <Input
+                      id="theme"
+                      value={data.lesson.theme ?? ""}
+                      onChange={(e) => updateLesson({ theme: e.target.value || null })}
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <Label>Mục tiêu</Label>
+                    <Button type="button" variant="ghost" size="sm" onClick={addObjective}>
+                      + Thêm mục tiêu
+                    </Button>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {data.lesson.objectives.map((objective, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <Input value={objective} onChange={(e) => updateObjective(idx, e.target.value)} />
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removeObjective(idx)}>
+                          Xoá
+                        </Button>
+                      </div>
+                    ))}
+                    {data.lesson.objectives.length === 0 && (
+                      <p className="text-xs text-muted-foreground">Chưa có mục tiêu nào.</p>
+                    )}
                   </div>
                 </div>
               </section>

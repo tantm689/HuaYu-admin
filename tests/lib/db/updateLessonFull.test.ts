@@ -145,7 +145,7 @@ describe('updateLessonFull', () => {
     await updateLessonFull('lesson-1', {
       titleZh: 'A2', titleVi: 'B2', dialogues: [], vocabulary: [], grammarPoints: [],
     })
-    expect(lessonUpdateMock).toHaveBeenCalledWith({ title_zh: 'A2', title_vi: 'B2' })
+    expect(lessonUpdateMock).toHaveBeenCalledWith({ title_zh: 'A2', title_vi: 'B2', theme: null, objectives: [] })
   })
 
   it('updates an existing dialogue and its lines in place, never touching audio_url', async () => {

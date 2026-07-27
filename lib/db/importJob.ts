@@ -64,6 +64,8 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
       lesson_no: result.lesson.lessonNo,
       title_zh: result.lesson.titleZh,
       title_vi: result.lesson.titleVi,
+      theme: result.lesson.theme,
+      objectives: result.lesson.objectives,
       status: 'draft',
     })
     .select()

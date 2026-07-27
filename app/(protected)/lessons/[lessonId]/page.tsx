@@ -103,6 +103,9 @@ export default async function LessonDetailPage({ params }: Props) {
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
             Bài {lessonRow.lesson_no}: {lessonRow.title_vi || lessonRow.title_zh}
           </h1>
+          {lessonRow.theme && (
+            <p className="text-sm text-muted-foreground">{lessonRow.theme}</p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {lessonRow.status === "draft" && (
@@ -116,6 +119,18 @@ export default async function LessonDetailPage({ params }: Props) {
         </div>
       </div>
 
+      {lessonRow.objectives?.length > 0 && (
+        <section>
+          <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+            Mục tiêu
+          </h2>
+          <ul className="list-inside list-disc space-y-1 text-sm text-foreground">
+            {lessonRow.objectives.map((objective, idx) => (
+              <li key={idx}>{objective}</li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">

@@ -101,6 +101,8 @@ export default function LessonEditPage({ params }: Props) {
       const payload = {
         titleZh: data.titleZh,
         titleVi: data.titleVi,
+        theme: data.theme,
+        objectives: data.objectives,
         dialogues: data.dialogues.map((d) => ({ ...d, id: toApiId(d.id), lines: d.lines.map((l) => ({ ...l, id: toApiId(l.id) })) })),
         vocabulary: data.vocabulary.map((v) => ({ ...v, id: toApiId(v.id) })),
         grammarPoints: data.grammarPoints.map((g) => ({
@@ -127,8 +129,28 @@ export default function LessonEditPage({ params }: Props) {
     }
   }
 
-  function updateLesson(patch: Partial<Pick<LessonFullView, "titleZh" | "titleVi">>) {
+  function updateLesson(patch: Partial<Pick<LessonFullView, "titleZh" | "titleVi" | "theme">>) {
     setData((prev) => (prev ? { ...prev, ...patch } : prev))
+  }
+
+  function updateObjective(idx: number, value: string) {
+    setData((prev) => {
+      if (!prev) return prev
+      const objectives = prev.objectives.map((o, i) => (i === idx ? value : o))
+      return { ...prev, objectives }
+    })
+  }
+
+  function addObjective() {
+    setData((prev) => (prev ? { ...prev, objectives: [...prev.objectives, ""] } : prev))
+  }
+
+  function removeObjective(idx: number) {
+    setData((prev) => {
+      if (!prev) return prev
+      const objectives = prev.objectives.filter((_, i) => i !== idx)
+      return { ...prev, objectives }
+    })
   }
 
   function updateDialogue(dIdx: number, patch: Partial<Dialogue>) {
@@ -310,6 +332,36 @@ export default function LessonEditPage({ params }: Props) {
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="titleVi">Tiêu đề (Việt)</Label>
             <Input id="titleVi" value={data.titleVi} onChange={(e) => updateLesson({ titleVi: e.target.value })} />
+          </div>
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <Label htmlFor="theme">Chủ đề</Label>
+            <Input
+              id="theme"
+              value={data.theme ?? ""}
+              onChange={(e) => updateLesson({ theme: e.target.value || null })}
+            />
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <div className="mb-1.5 flex items-center justify-between">
+            <Label>Mục tiêu</Label>
+            <Button type="button" variant="ghost" size="sm" onClick={addObjective}>
+              + Thêm mục tiêu
+            </Button>
+          </div>
+          <div className="flex flex-col gap-2">
+            {data.objectives.map((objective, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <Input value={objective} onChange={(e) => updateObjective(idx, e.target.value)} />
+                <Button type="button" variant="ghost" size="sm" onClick={() => removeObjective(idx)}>
+                  Xoá
+                </Button>
+              </div>
+            ))}
+            {data.objectives.length === 0 && (
+              <p className="text-xs text-muted-foreground">Chưa có mục tiêu nào.</p>
+            )}
           </div>
         </div>
       </section>
