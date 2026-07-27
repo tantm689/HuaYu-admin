@@ -1,48 +1,12 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { createServerSupabase } from "@/lib/supabase/server"
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge, type badgeVariants } from "@/components/ui/badge"
+import { BookTabs } from "./book-tabs"
 import type { Book, ExtractionJob, Lesson } from "@/lib/db/types"
-import type { VariantProps } from "class-variance-authority"
 
 interface Props {
   params: Promise<{ bookId: string }>
-}
-
-type BadgeVariant = VariantProps<typeof badgeVariants>["variant"]
-
-const lessonStatusLabel: Record<Lesson["status"], string> = {
-  draft: "Nháp",
-  reviewed: "Đã duyệt",
-  published: "Đã xuất bản",
-}
-
-const lessonStatusVariant: Record<Lesson["status"], BadgeVariant> = {
-  draft: "pending",
-  reviewed: "info",
-  published: "success",
-}
-
-const jobStatusLabel: Record<ExtractionJob["status"], string> = {
-  pending: "Đang chờ",
-  reviewed: "Đã duyệt",
-  imported: "Đã nhập",
-  failed: "Lỗi",
-}
-
-const jobStatusVariant: Record<ExtractionJob["status"], BadgeVariant> = {
-  pending: "pending",
-  reviewed: "info",
-  imported: "success",
-  failed: "destructive",
 }
 
 export default async function BookDetailPage({ params }: Props) {
@@ -91,69 +55,7 @@ export default async function BookDetailPage({ params }: Props) {
         </div>
       </div>
 
-      <section className="mb-10">
-        <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-          Bài học
-        </h2>
-        {lessonRows.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              Chưa có bài học nào.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {lessonRows.map((lesson) => (
-              <Link key={lesson.id} href={`/lessons/${lesson.id}`}>
-                <Card className="cursor-pointer transition-all hover:border-primary/40 hover:shadow-md">
-                  <CardHeader>
-                    <CardTitle>
-                      Bài {lesson.lesson_no}: {lesson.title_vi || lesson.title_zh}
-                    </CardTitle>
-                    <CardDescription>
-                      <Badge variant={lessonStatusVariant[lesson.status]}>
-                        {lessonStatusLabel[lesson.status]}
-                      </Badge>
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section>
-        <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-          Công việc trích xuất
-        </h2>
-        {jobRows.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              Chưa có công việc trích xuất nào.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {jobRows.map((job) => (
-              <Link key={job.id} href={`/books/${bookId}/jobs/${job.id}`}>
-                <Card className="cursor-pointer transition-all hover:border-primary/40 hover:shadow-md">
-                  <CardHeader>
-                    <CardTitle>
-                      Bài {job.lesson_no} · Trang {job.page_start}–{job.page_end}
-                    </CardTitle>
-                    <CardDescription>
-                      <Badge variant={jobStatusVariant[job.status]}>
-                        {jobStatusLabel[job.status]}
-                      </Badge>
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
+      <BookTabs bookId={bookId} lessons={lessonRows} jobs={jobRows} />
     </main>
   )
 }
