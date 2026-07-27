@@ -160,6 +160,36 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
         )
         if (exError) throw new Error(exError.message)
       }
+
+      for (const sp of gp.subPoints) {
+        const { data: spRow, error: spError } = await supabase
+          .from('grammar_sub_points')
+          .insert({
+            grammar_point_id: gpRow.id,
+            order: sp.order,
+            label: sp.label,
+            title_zh: sp.titleZh,
+            title_vi: sp.titleVi,
+            structure_note: sp.structureNote,
+          })
+          .select()
+          .single()
+
+        if (spError || !spRow) throw new Error(spError?.message ?? 'failed to insert grammar sub-point')
+
+        if (sp.examples.length > 0) {
+          const { error: spExError } = await supabase.from('grammar_examples').insert(
+            sp.examples.map((ex) => ({
+              grammar_sub_point_id: spRow.id,
+              order: ex.order,
+              text_zh: ex.textZh,
+              pinyin: ex.pinyin,
+              translation_vi: ex.translationVi,
+            }))
+          )
+          if (spExError) throw new Error(spExError.message)
+        }
+      }
     }
   } catch (err) {
     // A partial import (lesson committed, some children inserted) can never

@@ -1,6 +1,5 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { createServerSupabase } from "@/lib/supabase/server"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -10,14 +9,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { LessonStatusControls } from "./status-controls"
-import type {
-  Dialogue,
-  DialogueLine,
-  GrammarExample,
-  GrammarPoint,
-  Lesson,
-  VocabularyEntry,
-} from "@/lib/db/types"
+import { getLessonFull } from "@/lib/db/getLessonFull"
 
 interface Props {
   params: Promise<{ lessonId: string }>
@@ -25,75 +17,10 @@ interface Props {
 
 export default async function LessonDetailPage({ params }: Props) {
   const { lessonId } = await params
-  const supabase = createServerSupabase()
-
-  const { data: lesson } = await supabase
-    .from("lessons")
-    .select("*")
-    .eq("id", lessonId)
-    .single()
+  const lesson = await getLessonFull(lessonId)
 
   if (!lesson) {
     notFound()
-  }
-
-  const lessonRow = lesson as Lesson
-
-  const [{ data: dialogues }, { data: vocabulary }, { data: grammarPoints }] =
-    await Promise.all([
-      supabase
-        .from("dialogues")
-        .select("*")
-        .eq("lesson_id", lessonId)
-        .order("order", { ascending: true }),
-      supabase
-        .from("vocabulary")
-        .select("*")
-        .eq("lesson_id", lessonId)
-        .order("order", { ascending: true }),
-      supabase
-        .from("grammar_points")
-        .select("*")
-        .eq("lesson_id", lessonId)
-        .order("order", { ascending: true }),
-    ])
-
-  const dialogueRows = (dialogues ?? []) as Dialogue[]
-  const vocabRows = (vocabulary ?? []) as VocabularyEntry[]
-  const grammarRows = (grammarPoints ?? []) as GrammarPoint[]
-
-  const dialogueIds = dialogueRows.map((d) => d.id)
-  const grammarIds = grammarRows.map((g) => g.id)
-
-  const [{ data: dialogueLines }, { data: grammarExamples }] = await Promise.all([
-    dialogueIds.length > 0
-      ? supabase
-          .from("dialogue_lines")
-          .select("*")
-          .in("dialogue_id", dialogueIds)
-          .order("order", { ascending: true })
-      : Promise.resolve({ data: [] as DialogueLine[] }),
-    grammarIds.length > 0
-      ? supabase
-          .from("grammar_examples")
-          .select("*")
-          .in("grammar_point_id", grammarIds)
-          .order("order", { ascending: true })
-      : Promise.resolve({ data: [] as GrammarExample[] }),
-  ])
-
-  const linesByDialogue = new Map<string, DialogueLine[]>()
-  for (const line of (dialogueLines ?? []) as DialogueLine[]) {
-    const list = linesByDialogue.get(line.dialogue_id) ?? []
-    list.push(line)
-    linesByDialogue.set(line.dialogue_id, list)
-  }
-
-  const examplesByGrammar = new Map<string, GrammarExample[]>()
-  for (const example of (grammarExamples ?? []) as GrammarExample[]) {
-    const list = examplesByGrammar.get(example.grammar_point_id) ?? []
-    list.push(example)
-    examplesByGrammar.set(example.grammar_point_id, list)
   }
 
   return (
@@ -101,31 +28,29 @@ export default async function LessonDetailPage({ params }: Props) {
       <div className="sticky top-0 z-10 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 sm:-mx-6 sm:px-6">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
-            Bài {lessonRow.lesson_no}: {lessonRow.title_vi || lessonRow.title_zh}
+            Bài {lesson.lessonNo}: {lesson.titleVi || lesson.titleZh}
           </h1>
-          {lessonRow.theme && (
-            <p className="text-sm text-muted-foreground">{lessonRow.theme}</p>
-          )}
+          {lesson.theme && <p className="text-sm text-muted-foreground">{lesson.theme}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {lessonRow.status === "draft" && (
+          {lesson.status === "draft" && (
             <Button
               variant="outline"
               nativeButton={false}
-              render={<Link href={`/lessons/${lessonRow.id}/edit`}>Sửa</Link>}
+              render={<Link href={`/lessons/${lesson.id}/edit`}>Sửa</Link>}
             />
           )}
-          <LessonStatusControls lessonId={lessonRow.id} status={lessonRow.status} />
+          <LessonStatusControls lessonId={lesson.id} status={lesson.status} />
         </div>
       </div>
 
-      {lessonRow.objectives?.length > 0 && (
+      {lesson.objectives.length > 0 && (
         <section>
           <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
             Mục tiêu
           </h2>
           <ul className="list-inside list-disc space-y-1 text-sm text-foreground">
-            {lessonRow.objectives.map((objective, idx) => (
+            {lesson.objectives.map((objective, idx) => (
               <li key={idx}>{objective}</li>
             ))}
           </ul>
@@ -134,63 +59,51 @@ export default async function LessonDetailPage({ params }: Props) {
 
       <section>
         <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-          Bài khoá ({dialogueRows.length})
+          Bài khoá ({lesson.dialogues.length})
         </h2>
-        {dialogueRows.length === 0 ? (
+        {lesson.dialogues.length === 0 ? (
           <p className="text-sm text-muted-foreground">Chưa có bài khoá nào.</p>
         ) : (
           <Card>
             <CardContent className="px-4">
               <Accordion>
-                {dialogueRows.map((dialogue, idx) => {
-                  const lines = linesByDialogue.get(dialogue.id) ?? []
-                  return (
-                    <AccordionItem key={dialogue.id} value={dialogue.id}>
-                      <AccordionTrigger>
-                        Hội thoại {idx + 1}
-                        {dialogue.title_vi
-                          ? ` — ${dialogue.title_vi}`
-                          : dialogue.title_zh
-                            ? ` — ${dialogue.title_zh}`
-                            : ""}
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="flex flex-col gap-3">
-                          {dialogue.audio_url && (
-                            <audio
-                              controls
-                              preload="none"
-                              src={dialogue.audio_url}
-                              className="h-8 w-full max-w-sm"
-                            />
+                {lesson.dialogues.map((dialogue, idx) => (
+                  <AccordionItem key={dialogue.id} value={dialogue.id}>
+                    <AccordionTrigger>
+                      Hội thoại {idx + 1}
+                      {dialogue.titleVi
+                        ? ` — ${dialogue.titleVi}`
+                        : dialogue.titleZh
+                          ? ` — ${dialogue.titleZh}`
+                          : ""}
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="flex flex-col gap-3">
+                        {dialogue.audioUrl && (
+                          <audio controls preload="none" src={dialogue.audioUrl} className="h-8 w-full max-w-sm" />
+                        )}
+                        <div className="flex flex-col gap-2">
+                          {dialogue.lines.map((line) => (
+                            <div key={line.id} className="rounded-md border bg-muted/20 p-2.5">
+                              {line.speakerZh && (
+                                <p className="text-xs font-medium text-muted-foreground">
+                                  {line.speakerZh}
+                                  {line.speakerPinyin ? ` (${line.speakerPinyin})` : ""}
+                                </p>
+                              )}
+                              <p className="text-sm font-medium">{line.textZh}</p>
+                              {line.pinyin && <p className="text-sm text-muted-foreground">{line.pinyin}</p>}
+                              {line.translationVi && <p className="text-sm">{line.translationVi}</p>}
+                            </div>
+                          ))}
+                          {dialogue.lines.length === 0 && (
+                            <p className="text-xs text-muted-foreground">Chưa có câu thoại nào.</p>
                           )}
-                          <div className="flex flex-col gap-2">
-                            {lines.map((line) => (
-                              <div key={line.id} className="rounded-md border bg-muted/20 p-2.5">
-                                {line.speaker_zh && (
-                                  <p className="text-xs font-medium text-muted-foreground">
-                                    {line.speaker_zh}
-                                    {line.speaker_pinyin ? ` (${line.speaker_pinyin})` : ""}
-                                  </p>
-                                )}
-                                <p className="text-sm font-medium">{line.text_zh}</p>
-                                {line.pinyin && (
-                                  <p className="text-sm text-muted-foreground">{line.pinyin}</p>
-                                )}
-                                {line.translation_vi && (
-                                  <p className="text-sm">{line.translation_vi}</p>
-                                )}
-                              </div>
-                            ))}
-                            {lines.length === 0 && (
-                              <p className="text-xs text-muted-foreground">Chưa có câu thoại nào.</p>
-                            )}
-                          </div>
                         </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  )
-                })}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
               </Accordion>
             </CardContent>
           </Card>
@@ -199,26 +112,24 @@ export default async function LessonDetailPage({ params }: Props) {
 
       <section>
         <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-          Từ vựng ({vocabRows.length})
+          Từ vựng ({lesson.vocabulary.length})
         </h2>
-        {vocabRows.length === 0 ? (
+        {lesson.vocabulary.length === 0 ? (
           <p className="text-sm text-muted-foreground">Chưa có từ vựng nào.</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {vocabRows.map((vocab) => (
+            {lesson.vocabulary.map((vocab) => (
               <Card key={vocab.id} size="sm">
                 <CardContent className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium">
-                      {vocab.word_zh}
+                      {vocab.wordZh}
                       {vocab.pinyin ? ` · ${vocab.pinyin}` : ""}
                     </p>
-                    {vocab.meaning_vi && (
-                      <p className="text-sm text-muted-foreground">{vocab.meaning_vi}</p>
-                    )}
+                    {vocab.meaningVi && <p className="text-sm text-muted-foreground">{vocab.meaningVi}</p>}
                   </div>
-                  {vocab.audio_url && (
-                    <audio controls preload="none" src={vocab.audio_url} className="h-8 max-w-[12rem]" />
+                  {vocab.audioUrl && (
+                    <audio controls preload="none" src={vocab.audioUrl} className="h-8 max-w-[12rem]" />
                   )}
                 </CardContent>
               </Card>
@@ -229,48 +140,68 @@ export default async function LessonDetailPage({ params }: Props) {
 
       <section>
         <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-          Ngữ pháp ({grammarRows.length})
+          Ngữ pháp ({lesson.grammarPoints.length})
         </h2>
-        {grammarRows.length === 0 ? (
+        {lesson.grammarPoints.length === 0 ? (
           <p className="text-sm text-muted-foreground">Chưa có điểm ngữ pháp nào.</p>
         ) : (
           <Card>
             <CardContent className="px-4">
               <Accordion>
-                {grammarRows.map((point, idx) => {
-                  const examples = examplesByGrammar.get(point.id) ?? []
-                  return (
-                    <AccordionItem key={point.id} value={point.id}>
-                      <AccordionTrigger>
-                        Ngữ pháp {idx + 1}
-                        {point.title_vi ? ` — ${point.title_vi}` : ` — ${point.title_zh}`}
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="flex flex-col gap-3">
-                          {point.structure_note && (
-                            <p className="text-sm text-muted-foreground">{point.structure_note}</p>
-                          )}
-                          <div className="flex flex-col gap-2">
-                            {examples.map((example) => (
-                              <div key={example.id} className="rounded-md border bg-muted/20 p-2.5">
-                                <p className="text-sm font-medium">{example.text_zh}</p>
-                                {example.pinyin && (
-                                  <p className="text-sm text-muted-foreground">{example.pinyin}</p>
-                                )}
-                                {example.translation_vi && (
-                                  <p className="text-sm">{example.translation_vi}</p>
-                                )}
-                              </div>
-                            ))}
-                            {examples.length === 0 && (
-                              <p className="text-xs text-muted-foreground">Chưa có ví dụ nào.</p>
-                            )}
-                          </div>
+                {lesson.grammarPoints.map((point, idx) => (
+                  <AccordionItem key={point.id} value={point.id}>
+                    <AccordionTrigger>
+                      Ngữ pháp {idx + 1}
+                      {point.titleVi ? ` — ${point.titleVi}` : ` — ${point.titleZh}`}
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="flex flex-col gap-3">
+                        {point.structureNote && (
+                          <p className="text-sm whitespace-pre-line text-muted-foreground">
+                            {point.structureNote}
+                          </p>
+                        )}
+                        <div className="flex flex-col gap-2">
+                          {point.examples.map((example) => (
+                            <div key={example.id} className="rounded-md border bg-muted/20 p-2.5">
+                              <p className="text-sm font-medium">{example.textZh}</p>
+                              {example.pinyin && <p className="text-sm text-muted-foreground">{example.pinyin}</p>}
+                              {example.translationVi && <p className="text-sm">{example.translationVi}</p>}
+                            </div>
+                          ))}
                         </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  )
-                })}
+
+                        {point.subPoints.map((sub) => (
+                          <div key={sub.id} className="flex flex-col gap-2 rounded-md border p-3">
+                            <p className="text-sm font-semibold">
+                              {sub.label}.{sub.titleVi ? ` ${sub.titleVi}` : sub.titleZh ? ` ${sub.titleZh}` : ""}
+                            </p>
+                            {sub.structureNote && (
+                              <p className="text-sm whitespace-pre-line text-muted-foreground">
+                                {sub.structureNote}
+                              </p>
+                            )}
+                            <div className="flex flex-col gap-2">
+                              {sub.examples.map((example) => (
+                                <div key={example.id} className="rounded-md border bg-muted/20 p-2.5">
+                                  <p className="text-sm font-medium">{example.textZh}</p>
+                                  {example.pinyin && (
+                                    <p className="text-sm text-muted-foreground">{example.pinyin}</p>
+                                  )}
+                                  {example.translationVi && <p className="text-sm">{example.translationVi}</p>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+
+                        {point.examples.length === 0 && point.subPoints.length === 0 && (
+                          <p className="text-xs text-muted-foreground">Chưa có ví dụ nào.</p>
+                        )}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
               </Accordion>
             </CardContent>
           </Card>

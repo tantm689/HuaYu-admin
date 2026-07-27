@@ -216,19 +216,70 @@ async function syncGrammarPoints(
       gpId = data.id
     }
 
-    await syncGrammarExamples(supabase, gpId!, gp.examples)
+    await syncGrammarExamples(supabase, 'grammar_point_id', gpId!, gp.examples)
+    await syncGrammarSubPoints(supabase, gpId!, gp.subPoints)
+  }
+}
+
+async function syncGrammarSubPoints(
+  supabase: Supabase,
+  grammarPointId: string,
+  subPoints: LessonFullUpdate['grammarPoints'][number]['subPoints']
+) {
+  const { data: existingRows } = await supabase
+    .from('grammar_sub_points')
+    .select('id')
+    .eq('grammar_point_id', grammarPointId)
+  const existingIds = new Set((existingRows ?? []).map((r: { id: string }) => r.id))
+  const keptIds = new Set(subPoints.filter((sp) => sp.id).map((sp) => sp.id as string))
+
+  const toDelete = [...existingIds].filter((id) => !keptIds.has(id))
+  if (toDelete.length > 0) {
+    await supabase.from('grammar_sub_points').delete().in('id', toDelete)
+  }
+
+  for (const sp of subPoints) {
+    let spId = sp.id
+    if (spId) {
+      const { error } = await supabase
+        .from('grammar_sub_points')
+        .update({
+          order: sp.order,
+          label: sp.label,
+          title_zh: sp.titleZh,
+          title_vi: sp.titleVi,
+          structure_note: sp.structureNote,
+        })
+        .eq('id', spId)
+      if (error) throw new Error(error.message)
+    } else {
+      const { data, error } = await supabase
+        .from('grammar_sub_points')
+        .insert({
+          grammar_point_id: grammarPointId,
+          order: sp.order,
+          label: sp.label,
+          title_zh: sp.titleZh,
+          title_vi: sp.titleVi,
+          structure_note: sp.structureNote,
+        })
+        .select()
+        .single()
+      if (error || !data) throw new Error(error?.message ?? 'failed to insert grammar sub-point')
+      spId = data.id
+    }
+
+    await syncGrammarExamples(supabase, 'grammar_sub_point_id', spId!, sp.examples)
   }
 }
 
 async function syncGrammarExamples(
   supabase: Supabase,
-  grammarPointId: string,
+  parentColumn: 'grammar_point_id' | 'grammar_sub_point_id',
+  parentId: string,
   examples: LessonFullUpdate['grammarPoints'][number]['examples']
 ) {
-  const { data: existingRows } = await supabase
-    .from('grammar_examples')
-    .select('id')
-    .eq('grammar_point_id', grammarPointId)
+  const { data: existingRows } = await supabase.from('grammar_examples').select('id').eq(parentColumn, parentId)
   const existingIds = new Set((existingRows ?? []).map((r: { id: string }) => r.id))
   const keptIds = new Set(examples.filter((e) => e.id).map((e) => e.id as string))
 
@@ -239,7 +290,7 @@ async function syncGrammarExamples(
 
   for (const example of examples) {
     const row = {
-      grammar_point_id: grammarPointId,
+      [parentColumn]: parentId,
       order: example.order,
       text_zh: example.textZh,
       pinyin: example.pinyin,

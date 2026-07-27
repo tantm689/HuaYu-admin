@@ -32,4 +32,32 @@ describe('ExtractionResultSchema', () => {
     const parsed = ExtractionResultSchema.parse(sparse)
     expect(parsed.vocabulary[0].pinyin).toBeNull()
   })
+
+  it('defaults a grammar point missing subPoints to an empty array', () => {
+    const parsed = ExtractionResultSchema.parse(validSample)
+    expect(parsed.grammarPoints[0].subPoints).toEqual([])
+  })
+
+  it('accepts a grammar point with lettered subPoints, each with their own structureNote and examples', () => {
+    const withSubPoints = {
+      ...validSample,
+      grammarPoints: [{
+        order: 1, titleZh: 'I. 問問題的方法', titleVi: 'Cách đặt câu hỏi', structureNote: null, examples: [],
+        subPoints: [
+          {
+            order: 1, label: 'A', titleZh: 'A不A', titleVi: 'Câu hỏi với A不A', structureNote: 'Cấu trúc: A不A.',
+            examples: [{ order: 1, textZh: '你好不好？', pinyin: 'Nǐ hǎo bù hǎo?', translationVi: 'Bạn có tốt không?' }],
+          },
+          {
+            order: 2, label: 'B', titleZh: '嗎', titleVi: 'Câu hỏi với 嗎', structureNote: 'Cấu trúc: CÂU + 嗎?',
+            examples: [],
+          },
+        ],
+      }],
+    }
+    const parsed = ExtractionResultSchema.parse(withSubPoints)
+    expect(parsed.grammarPoints[0].subPoints).toHaveLength(2)
+    expect(parsed.grammarPoints[0].subPoints[0]).toMatchObject({ label: 'A', titleVi: 'Câu hỏi với A不A' })
+    expect(parsed.grammarPoints[0].subPoints[0].examples).toHaveLength(1)
+  })
 })

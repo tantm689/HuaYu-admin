@@ -4,9 +4,18 @@ import type {
   DialogueLine,
   GrammarExample,
   GrammarPoint,
+  GrammarSubPoint,
   Lesson,
   VocabularyEntry,
 } from '@/lib/db/types'
+
+interface ExampleView {
+  id: string
+  order: number
+  textZh: string
+  pinyin: string | null
+  translationVi: string | null
+}
 
 export interface LessonFullView {
   id: string
@@ -47,12 +56,15 @@ export interface LessonFullView {
     titleZh: string
     titleVi: string | null
     structureNote: string | null
-    examples: {
+    examples: ExampleView[]
+    subPoints: {
       id: string
       order: number
-      textZh: string
-      pinyin: string | null
-      translationVi: string | null
+      label: string
+      titleZh: string | null
+      titleVi: string | null
+      structureNote: string | null
+      examples: ExampleView[]
     }[]
   }[]
 }
@@ -77,18 +89,33 @@ export async function getLessonFull(lessonId: string): Promise<LessonFullView | 
   const dialogueIds = dialogueRows.map((d) => d.id)
   const grammarIds = grammarRows.map((g) => g.id)
 
-  const [{ data: dialogueLines }, { data: grammarExamples }] = await Promise.all([
+  const [{ data: dialogueLines }, { data: grammarSubPoints }] = await Promise.all([
     dialogueIds.length > 0
       ? supabase.from('dialogue_lines').select('*').in('dialogue_id', dialogueIds).order('order', { ascending: true })
       : Promise.resolve({ data: [] as DialogueLine[] }),
     grammarIds.length > 0
-      ? supabase
+      ? supabase.from('grammar_sub_points').select('*').in('grammar_point_id', grammarIds).order('order', { ascending: true })
+      : Promise.resolve({ data: [] as GrammarSubPoint[] }),
+  ])
+
+  const subPointRows = (grammarSubPoints ?? []) as GrammarSubPoint[]
+  const subPointIds = subPointRows.map((sp) => sp.id)
+
+  const { data: grammarExamples } =
+    grammarIds.length > 0 || subPointIds.length > 0
+      ? await supabase
           .from('grammar_examples')
           .select('*')
-          .in('grammar_point_id', grammarIds)
+          .or(
+            [
+              grammarIds.length > 0 ? `grammar_point_id.in.(${grammarIds.join(',')})` : null,
+              subPointIds.length > 0 ? `grammar_sub_point_id.in.(${subPointIds.join(',')})` : null,
+            ]
+              .filter(Boolean)
+              .join(',')
+          )
           .order('order', { ascending: true })
-      : Promise.resolve({ data: [] as GrammarExample[] }),
-  ])
+      : { data: [] as GrammarExample[] }
 
   const linesByDialogue = new Map<string, DialogueLine[]>()
   for (const line of (dialogueLines ?? []) as DialogueLine[]) {
@@ -98,10 +125,28 @@ export async function getLessonFull(lessonId: string): Promise<LessonFullView | 
   }
 
   const examplesByGrammar = new Map<string, GrammarExample[]>()
+  const examplesBySubPoint = new Map<string, GrammarExample[]>()
   for (const example of (grammarExamples ?? []) as GrammarExample[]) {
-    const list = examplesByGrammar.get(example.grammar_point_id) ?? []
-    list.push(example)
-    examplesByGrammar.set(example.grammar_point_id, list)
+    if (example.grammar_point_id) {
+      const list = examplesByGrammar.get(example.grammar_point_id) ?? []
+      list.push(example)
+      examplesByGrammar.set(example.grammar_point_id, list)
+    } else if (example.grammar_sub_point_id) {
+      const list = examplesBySubPoint.get(example.grammar_sub_point_id) ?? []
+      list.push(example)
+      examplesBySubPoint.set(example.grammar_sub_point_id, list)
+    }
+  }
+
+  const subPointsByGrammar = new Map<string, GrammarSubPoint[]>()
+  for (const sp of subPointRows) {
+    const list = subPointsByGrammar.get(sp.grammar_point_id) ?? []
+    list.push(sp)
+    subPointsByGrammar.set(sp.grammar_point_id, list)
+  }
+
+  function toExampleView(e: GrammarExample): ExampleView {
+    return { id: e.id, order: e.order, textZh: e.text_zh, pinyin: e.pinyin, translationVi: e.translation_vi }
   }
 
   return {
@@ -143,12 +188,15 @@ export async function getLessonFull(lessonId: string): Promise<LessonFullView | 
       titleZh: g.title_zh,
       titleVi: g.title_vi,
       structureNote: g.structure_note,
-      examples: (examplesByGrammar.get(g.id) ?? []).map((e) => ({
-        id: e.id,
-        order: e.order,
-        textZh: e.text_zh,
-        pinyin: e.pinyin,
-        translationVi: e.translation_vi,
+      examples: (examplesByGrammar.get(g.id) ?? []).map(toExampleView),
+      subPoints: (subPointsByGrammar.get(g.id) ?? []).map((sp) => ({
+        id: sp.id,
+        order: sp.order,
+        label: sp.label,
+        titleZh: sp.title_zh,
+        titleVi: sp.title_vi,
+        structureNote: sp.structure_note,
+        examples: (examplesBySubPoint.get(sp.id) ?? []).map(toExampleView),
       })),
     })),
   }

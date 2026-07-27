@@ -60,9 +60,20 @@ export interface GrammarPoint {
   structure_note: string | null
 }
 
-export interface GrammarExample {
+export interface GrammarSubPoint {
   id: string
   grammar_point_id: string
+  order: number
+  label: string
+  title_zh: string | null
+  title_vi: string | null
+  structure_note: string | null
+}
+
+export interface GrammarExample {
+  id: string
+  grammar_point_id: string | null
+  grammar_sub_point_id: string | null
   order: number
   text_zh: string
   pinyin: string | null

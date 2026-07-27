@@ -40,6 +40,16 @@ const ExampleInput = z.object({
   translationVi: nullableString,
 })
 
+const GrammarSubPointInput = z.object({
+  id: rowId,
+  order: z.number(),
+  label: z.string(),
+  titleZh: nullableString,
+  titleVi: nullableString,
+  structureNote: nullableString,
+  examples: z.array(ExampleInput),
+})
+
 const GrammarPointInput = z.object({
   id: rowId,
   order: z.number(),
@@ -47,6 +57,7 @@ const GrammarPointInput = z.object({
   titleVi: nullableString,
   structureNote: nullableString,
   examples: z.array(ExampleInput),
+  subPoints: z.array(GrammarSubPointInput).default([]),
 })
 
 export const LessonFullUpdateSchema = z.object({

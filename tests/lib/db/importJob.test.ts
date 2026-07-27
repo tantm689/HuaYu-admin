@@ -6,12 +6,16 @@ const {
   generateVocabAudioMock,
   storageRemoveMock,
   extractionJobsUpdateMock,
+  insertGrammarExampleMock,
+  insertGrammarSubPointMock,
 } = vi.hoisted(() => ({
   insertLessonMock: vi.fn(),
   deleteLessonMock: vi.fn(),
   generateVocabAudioMock: vi.fn().mockResolvedValue(new Uint8Array([1])),
   storageRemoveMock: vi.fn(),
   extractionJobsUpdateMock: vi.fn(),
+  insertGrammarExampleMock: vi.fn(),
+  insertGrammarSubPointMock: vi.fn(),
 }))
 
 vi.mock('@/lib/tts/edgeTts', () => ({ generateVocabAudio: generateVocabAudioMock }))
@@ -63,8 +67,21 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'grammar_points') {
         return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'gp-1' }, error: null }) }) }) }
       }
+      if (table === 'grammar_sub_points') {
+        return {
+          insert: (row: any) => {
+            insertGrammarSubPointMock(row)
+            return { select: () => ({ single: () => Promise.resolve({ data: { id: 'sp-1' }, error: null }) }) }
+          },
+        }
+      }
       if (table === 'grammar_examples') {
-        return { insert: () => Promise.resolve({ error: null }) }
+        return {
+          insert: (rows: any) => {
+            insertGrammarExampleMock(rows)
+            return Promise.resolve({ error: null })
+          },
+        }
       }
       if (table === 'extraction_jobs') {
         return {
@@ -75,7 +92,14 @@ vi.mock('@/lib/supabase/server', () => ({
                 lesson: { lessonNo: 1, titleZh: 'A', titleVi: 'B' },
                 dialogues: [{ order: 1, titleZh: null, titleVi: null, audioCode: '01-1', lines: [{ order: 1, speakerZh: null, speakerPinyin: null, textZh: 'x', pinyin: null, translationVi: null }] }],
                 vocabulary: [{ order: 1, wordZh: '你好', pinyin: 'nǐ hǎo', meaningVi: 'xin chào' }],
-                grammarPoints: [{ order: 1, titleZh: 'G1', titleVi: null, structureNote: null, examples: [{ order: 1, textZh: 'e', pinyin: null, translationVi: null }] }],
+                grammarPoints: [{
+                  order: 1, titleZh: 'G1', titleVi: null, structureNote: null,
+                  examples: [{ order: 1, textZh: 'e', pinyin: null, translationVi: null }],
+                  subPoints: [{
+                    order: 1, label: 'A', titleZh: 'A1', titleVi: null, structureNote: 'note A',
+                    examples: [{ order: 1, textZh: 'sub-e', pinyin: null, translationVi: null }],
+                  }],
+                }],
               },
             },
             error: null,
@@ -129,6 +153,23 @@ describe('importExtractionJob', () => {
       expect.objectContaining({ book_id: 'book-1', lesson_no: 1, status: 'draft' })
     )
     expect(generateVocabAudioMock).toHaveBeenCalledWith('你好')
+  })
+
+  it('writes a grammar point examples under grammar_point_id', async () => {
+    await importExtractionJob('job-1')
+    expect(insertGrammarExampleMock).toHaveBeenCalledWith([
+      expect.objectContaining({ grammar_point_id: 'gp-1', text_zh: 'e' }),
+    ])
+  })
+
+  it('writes grammar sub-points and their examples under grammar_sub_point_id, not grammar_point_id', async () => {
+    await importExtractionJob('job-1')
+    expect(insertGrammarSubPointMock).toHaveBeenCalledWith(
+      expect.objectContaining({ grammar_point_id: 'gp-1', label: 'A', title_zh: 'A1', structure_note: 'note A' })
+    )
+    expect(insertGrammarExampleMock).toHaveBeenCalledWith([
+      expect.objectContaining({ grammar_sub_point_id: 'sp-1', text_zh: 'sub-e' }),
+    ])
   })
 
   it('removes the sliced PDF from storage and clears sliced_pdf_path after import', async () => {

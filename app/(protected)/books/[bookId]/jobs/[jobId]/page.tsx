@@ -39,6 +39,7 @@ type DialogueLine = Dialogue["lines"][number]
 type VocabularyEntry = ExtractionResult["vocabulary"][number]
 type GrammarPoint = ExtractionResult["grammarPoints"][number]
 type GrammarExample = GrammarPoint["examples"][number]
+type GrammarSubPoint = GrammarPoint["subPoints"][number]
 
 interface Props {
   params: Promise<{ bookId: string; jobId: string }>
@@ -67,8 +68,12 @@ function emptyExample(order: number): GrammarExample {
   return { order, textZh: "", pinyin: null, translationVi: null }
 }
 
+function emptySubPoint(order: number): GrammarSubPoint {
+  return { order, label: "", titleZh: null, titleVi: null, structureNote: null, examples: [emptyExample(1)] }
+}
+
 function emptyGrammarPoint(order: number): GrammarPoint {
-  return { order, titleZh: "", titleVi: null, structureNote: null, examples: [emptyExample(1)] }
+  return { order, titleZh: "", titleVi: null, structureNote: null, examples: [emptyExample(1)], subPoints: [] }
 }
 
 export default function JobReviewPage({ params }: Props) {
@@ -410,6 +415,86 @@ export default function JobReviewPage({ params }: Props) {
       const grammarPoints = prev.grammarPoints.map((g, i) =>
         i === gIdx ? { ...g, examples: g.examples.filter((_, j) => j !== eIdx) } : g
       )
+      return { ...prev, grammarPoints }
+    })
+  }
+
+  function updateSubPoint(gIdx: number, spIdx: number, patch: Partial<GrammarSubPoint>) {
+    setData((prev) => {
+      if (!prev) return prev
+      const grammarPoints = prev.grammarPoints.map((g, i) => {
+        if (i !== gIdx) return g
+        return { ...g, subPoints: g.subPoints.map((sp, j) => (j === spIdx ? { ...sp, ...patch } : sp)) }
+      })
+      return { ...prev, grammarPoints }
+    })
+  }
+
+  function addSubPoint(gIdx: number) {
+    setData((prev) => {
+      if (!prev) return prev
+      const grammarPoints = prev.grammarPoints.map((g, i) =>
+        i === gIdx ? { ...g, subPoints: [...g.subPoints, emptySubPoint(g.subPoints.length + 1)] } : g
+      )
+      return { ...prev, grammarPoints }
+    })
+  }
+
+  function removeSubPoint(gIdx: number, spIdx: number) {
+    setData((prev) => {
+      if (!prev) return prev
+      const grammarPoints = prev.grammarPoints.map((g, i) =>
+        i === gIdx ? { ...g, subPoints: g.subPoints.filter((_, j) => j !== spIdx) } : g
+      )
+      return { ...prev, grammarPoints }
+    })
+  }
+
+  function updateSubPointExample(gIdx: number, spIdx: number, eIdx: number, patch: Partial<GrammarExample>) {
+    setData((prev) => {
+      if (!prev) return prev
+      const grammarPoints = prev.grammarPoints.map((g, i) => {
+        if (i !== gIdx) return g
+        return {
+          ...g,
+          subPoints: g.subPoints.map((sp, j) => {
+            if (j !== spIdx) return sp
+            return { ...sp, examples: sp.examples.map((e, k) => (k === eIdx ? { ...e, ...patch } : e)) }
+          }),
+        }
+      })
+      return { ...prev, grammarPoints }
+    })
+  }
+
+  function addSubPointExample(gIdx: number, spIdx: number) {
+    setData((prev) => {
+      if (!prev) return prev
+      const grammarPoints = prev.grammarPoints.map((g, i) => {
+        if (i !== gIdx) return g
+        return {
+          ...g,
+          subPoints: g.subPoints.map((sp, j) =>
+            j === spIdx ? { ...sp, examples: [...sp.examples, emptyExample(sp.examples.length + 1)] } : sp
+          ),
+        }
+      })
+      return { ...prev, grammarPoints }
+    })
+  }
+
+  function removeSubPointExample(gIdx: number, spIdx: number, eIdx: number) {
+    setData((prev) => {
+      if (!prev) return prev
+      const grammarPoints = prev.grammarPoints.map((g, i) => {
+        if (i !== gIdx) return g
+        return {
+          ...g,
+          subPoints: g.subPoints.map((sp, j) =>
+            j === spIdx ? { ...sp, examples: sp.examples.filter((_, k) => k !== eIdx) } : sp
+          ),
+        }
+      })
       return { ...prev, grammarPoints }
     })
   }
@@ -843,6 +928,115 @@ export default function JobReviewPage({ params }: Props) {
                             >
                               + Thêm ví dụ
                             </Button>
+                          </div>
+
+                          <div className="flex flex-col gap-3 rounded-md border border-dashed p-3">
+                            <div className="flex items-center justify-between">
+                              <Label>
+                                Đề mục con (dùng khi điểm ngữ pháp có cấu trúc I/A/B - mỗi đề mục con có giải thích và
+                                ví dụ riêng)
+                              </Label>
+                              <Button type="button" variant="ghost" size="sm" onClick={() => addSubPoint(gIdx)}>
+                                + Thêm đề mục con
+                              </Button>
+                            </div>
+
+                            {point.subPoints.map((sub, spIdx) => (
+                              <div key={spIdx} className="flex flex-col gap-2 rounded-md border bg-muted/20 p-2.5">
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                  <Input
+                                    placeholder="Nhãn (A, B...)"
+                                    value={sub.label}
+                                    onChange={(e) => updateSubPoint(gIdx, spIdx, { label: e.target.value })}
+                                  />
+                                  <Input
+                                    placeholder="Tiêu đề (Trung)"
+                                    value={sub.titleZh ?? ""}
+                                    onChange={(e) => updateSubPoint(gIdx, spIdx, { titleZh: e.target.value || null })}
+                                  />
+                                  <Input
+                                    placeholder="Tiêu đề (Việt)"
+                                    value={sub.titleVi ?? ""}
+                                    onChange={(e) => updateSubPoint(gIdx, spIdx, { titleVi: e.target.value || null })}
+                                  />
+                                </div>
+                                <Textarea
+                                  placeholder="Ghi chú cấu trúc riêng của đề mục con"
+                                  value={sub.structureNote ?? ""}
+                                  onChange={(e) =>
+                                    updateSubPoint(gIdx, spIdx, { structureNote: e.target.value || null })
+                                  }
+                                />
+
+                                <div className="flex flex-col gap-2">
+                                  {sub.examples.map((example, eIdx) => (
+                                    <div key={eIdx} className="rounded-md border bg-background p-2.5">
+                                      <Textarea
+                                        placeholder="Câu ví dụ (Trung)"
+                                        value={example.textZh}
+                                        onChange={(e) =>
+                                          updateSubPointExample(gIdx, spIdx, eIdx, { textZh: e.target.value })
+                                        }
+                                      />
+                                      <Input
+                                        className="mt-2"
+                                        placeholder="Pinyin"
+                                        value={example.pinyin ?? ""}
+                                        onChange={(e) =>
+                                          updateSubPointExample(gIdx, spIdx, eIdx, { pinyin: e.target.value || null })
+                                        }
+                                      />
+                                      <Textarea
+                                        className="mt-2"
+                                        placeholder="Dịch (Việt)"
+                                        value={example.translationVi ?? ""}
+                                        onChange={(e) =>
+                                          updateSubPointExample(gIdx, spIdx, eIdx, {
+                                            translationVi: e.target.value || null,
+                                          })
+                                        }
+                                      />
+                                      <div className="mt-2 flex justify-end">
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => removeSubPointExample(gIdx, spIdx, eIdx)}
+                                        >
+                                          Xoá ví dụ
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <div className="flex justify-between">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => addSubPointExample(gIdx, spIdx)}
+                                  >
+                                    + Thêm ví dụ
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-destructive"
+                                    onClick={() => removeSubPoint(gIdx, spIdx)}
+                                  >
+                                    Xoá đề mục con
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                            {point.subPoints.length === 0 && (
+                              <p className="text-xs text-muted-foreground">Chưa có đề mục con nào.</p>
+                            )}
+                          </div>
+
+                          <div className="flex justify-end">
                             <Button
                               type="button"
                               variant="ghost"
