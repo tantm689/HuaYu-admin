@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/accordion"
 import { waitForCanvasRef } from "@/lib/pdf/waitForCanvasRef"
 import type { ExtractionJob, JobStatus } from "@/lib/db/types"
-import type { ExtractionResult } from "@/lib/gemini/schema"
+import { ExtractionResultSchema, type ExtractionResult } from "@/lib/gemini/schema"
 import type { ExistingLessonSummary } from "@/lib/db/checkExistingLesson"
 import type { VariantProps } from "class-variance-authority"
 
@@ -107,7 +107,12 @@ export default function JobReviewPage({ params }: Props) {
       const jobData: JobWithExistingLesson = await res.json()
       setJob(jobData)
       if (jobData.raw_json) {
-        setData(jobData.raw_json as ExtractionResult)
+        // Older jobs' raw_json predates fields added later (e.g. theme/
+        // objectives) with schema defaults - re-parsing here (not just
+        // casting) fills those in the same way the server does, instead of
+        // leaving them undefined and crashing the form below.
+        const parsed = ExtractionResultSchema.safeParse(jobData.raw_json)
+        setData(parsed.success ? parsed.data : (jobData.raw_json as ExtractionResult))
       }
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Không tải được công việc trích xuất.")
