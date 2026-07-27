@@ -1,6 +1,7 @@
 import { createServerSupabase } from '@/lib/supabase/server'
 import { generateVocabAudio } from '@/lib/tts/edgeTts'
 import { ExtractionResultSchema } from '@/lib/gemini/schema'
+import { deleteLessonAndAudio } from '@/lib/db/deleteLesson'
 
 const VOCAB_TTS_TIMEOUT_MS = 15_000
 
@@ -42,19 +43,7 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
     .maybeSingle()
 
   if (existing) {
-    const [{ data: oldDialogues }, { data: oldVocab }] = await Promise.all([
-      supabase.from('dialogues').select('id').eq('lesson_id', existing.id),
-      supabase.from('vocabulary').select('id').eq('lesson_id', existing.id),
-    ])
-    const audioPaths = [
-      ...(oldDialogues ?? []).map((d: { id: string }) => `dialogues/${d.id}.mp3`),
-      ...(oldVocab ?? []).map((v: { id: string }) => `vocab/${v.id}.mp3`),
-    ]
-    if (audioPaths.length > 0) {
-      await supabase.storage.from('audio').remove(audioPaths)
-    }
-    const { error: deleteError } = await supabase.from('lessons').delete().eq('id', existing.id)
-    if (deleteError) throw new Error(deleteError.message)
+    await deleteLessonAndAudio(existing.id)
   }
 
   const { data: lesson, error: lessonError } = await supabase

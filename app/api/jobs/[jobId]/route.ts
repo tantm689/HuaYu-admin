@@ -65,3 +65,34 @@ export async function PATCH(
   }
   return NextResponse.json({ status: 'reviewed' })
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ jobId: string }> }
+) {
+  const authorized = await requireAdmin(request)
+  if (!authorized.authorized) return authorized.response
+
+  const { jobId } = await params
+  const supabase = createServerSupabase()
+
+  const { data: job, error: jobError } = await supabase
+    .from('extraction_jobs')
+    .select('sliced_pdf_path')
+    .eq('id', jobId)
+    .single()
+
+  if (jobError || !job) {
+    return NextResponse.json({ error: 'job not found' }, { status: 404 })
+  }
+
+  if (job.sliced_pdf_path) {
+    await supabase.storage.from('book-pdfs').remove([job.sliced_pdf_path])
+  }
+
+  const { error } = await supabase.from('extraction_jobs').delete().eq('id', jobId)
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+  return NextResponse.json({ ok: true })
+}

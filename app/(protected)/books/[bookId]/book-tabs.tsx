@@ -1,8 +1,11 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Tabs, TabsList, TabsTab, TabsIndicator, TabsPanel } from "@/components/ui/tabs"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Badge, type badgeVariants } from "@/components/ui/badge"
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
 import type { ExtractionJob, Lesson } from "@/lib/db/types"
@@ -36,17 +39,49 @@ const jobStatusVariant: Record<ExtractionJob["status"], BadgeVariant> = {
   failed: "destructive",
 }
 
-function JobCard({ bookId, job }: { bookId: string; job: ExtractionJob }) {
+function DeleteButton({ onDelete, isDeleting }: { onDelete: () => void; isDeleting: boolean }) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="text-destructive"
+      disabled={isDeleting}
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onDelete()
+      }}
+    >
+      {isDeleting ? "Đang xoá..." : "Xoá"}
+    </Button>
+  )
+}
+
+function JobCard({
+  bookId,
+  job,
+  onDelete,
+  isDeleting,
+}: {
+  bookId: string
+  job: ExtractionJob
+  onDelete: () => void
+  isDeleting: boolean
+}) {
   return (
     <Link href={`/books/${bookId}/jobs/${job.id}`}>
       <Card className="cursor-pointer transition-all hover:border-primary/40 hover:shadow-md">
-        <CardHeader>
-          <CardTitle>
-            Bài {job.lesson_no} · Trang {job.page_start}–{job.page_end}
-          </CardTitle>
-          <CardDescription>
-            <Badge variant={jobStatusVariant[job.status]}>{jobStatusLabel[job.status]}</Badge>
-          </CardDescription>
+        <CardHeader className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle>
+              Bài {job.lesson_no} · Trang {job.page_start}–{job.page_end}
+            </CardTitle>
+            <CardDescription>
+              <Badge variant={jobStatusVariant[job.status]}>{jobStatusLabel[job.status]}</Badge>
+            </CardDescription>
+          </div>
+          <DeleteButton onDelete={onDelete} isDeleting={isDeleting} />
         </CardHeader>
       </Card>
     </Link>
@@ -60,8 +95,49 @@ interface Props {
 }
 
 export function BookTabs({ bookId, lessons, jobs }: Props) {
+  const router = useRouter()
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
   const activeJobs = jobs.filter((job) => job.status !== "imported")
   const importedJobs = jobs.filter((job) => job.status === "imported")
+
+  async function handleDeleteLesson(lesson: Lesson) {
+    if (!window.confirm(`Xoá bài "${lesson.title_vi || lesson.title_zh}"? Hành động này không thể hoàn tác.`)) {
+      return
+    }
+    setDeletingId(lesson.id)
+    try {
+      const res = await fetch(`/api/lessons/${lesson.id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? "Xoá bài học thất bại.")
+      }
+      router.refresh()
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Xoá bài học thất bại.")
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  async function handleDeleteJob(job: ExtractionJob) {
+    if (!window.confirm(`Xoá công việc trích xuất "Bài ${job.lesson_no} · Trang ${job.page_start}–${job.page_end}"? Hành động này không thể hoàn tác.`)) {
+      return
+    }
+    setDeletingId(job.id)
+    try {
+      const res = await fetch(`/api/jobs/${job.id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? "Xoá công việc trích xuất thất bại.")
+      }
+      router.refresh()
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Xoá công việc trích xuất thất bại.")
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   return (
     <Tabs defaultValue="lessons">
@@ -83,15 +159,23 @@ export function BookTabs({ bookId, lessons, jobs }: Props) {
             {lessons.map((lesson) => (
               <Link key={lesson.id} href={`/lessons/${lesson.id}`}>
                 <Card className="cursor-pointer transition-all hover:border-primary/40 hover:shadow-md">
-                  <CardHeader>
-                    <CardTitle>
-                      Bài {lesson.lesson_no}: {lesson.title_vi || lesson.title_zh}
-                    </CardTitle>
-                    <CardDescription>
-                      <Badge variant={lessonStatusVariant[lesson.status]}>
-                        {lessonStatusLabel[lesson.status]}
-                      </Badge>
-                    </CardDescription>
+                  <CardHeader className="flex items-start justify-between gap-3">
+                    <div>
+                      <CardTitle>
+                        Bài {lesson.lesson_no}: {lesson.title_vi || lesson.title_zh}
+                      </CardTitle>
+                      <CardDescription>
+                        <Badge variant={lessonStatusVariant[lesson.status]}>
+                          {lessonStatusLabel[lesson.status]}
+                        </Badge>
+                      </CardDescription>
+                    </div>
+                    {lesson.status !== "published" && (
+                      <DeleteButton
+                        onDelete={() => handleDeleteLesson(lesson)}
+                        isDeleting={deletingId === lesson.id}
+                      />
+                    )}
                   </CardHeader>
                 </Card>
               </Link>
@@ -110,7 +194,13 @@ export function BookTabs({ bookId, lessons, jobs }: Props) {
         ) : (
           <div className="flex flex-col gap-3">
             {activeJobs.map((job) => (
-              <JobCard key={job.id} bookId={bookId} job={job} />
+              <JobCard
+                key={job.id}
+                bookId={bookId}
+                job={job}
+                onDelete={() => handleDeleteJob(job)}
+                isDeleting={deletingId === job.id}
+              />
             ))}
 
             {importedJobs.length > 0 && (
@@ -122,7 +212,13 @@ export function BookTabs({ bookId, lessons, jobs }: Props) {
                   <AccordionContent>
                     <div className="flex flex-col gap-3">
                       {importedJobs.map((job) => (
-                        <JobCard key={job.id} bookId={bookId} job={job} />
+                        <JobCard
+                          key={job.id}
+                          bookId={bookId}
+                          job={job}
+                          onDelete={() => handleDeleteJob(job)}
+                          isDeleting={deletingId === job.id}
+                        />
                       ))}
                     </div>
                   </AccordionContent>

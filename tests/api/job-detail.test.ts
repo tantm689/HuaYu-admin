@@ -1,9 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 let jobStatus = 'pending'
-const singleMock = vi.fn(() => Promise.resolve({ data: { id: 'job-1', status: jobStatus, book_id: 'book-1', raw_json: { lesson: { lessonNo: 1 } } }, error: null }))
+let slicedPdfPath: string | null = null
+const singleMock = vi.fn(() =>
+  Promise.resolve({
+    data: { id: 'job-1', status: jobStatus, book_id: 'book-1', sliced_pdf_path: slicedPdfPath, raw_json: { lesson: { lessonNo: 1 } } },
+    error: null,
+  })
+)
 const eqUpdateMock = vi.fn().mockResolvedValue({ error: null })
 const updateMock = vi.fn().mockReturnValue({ eq: eqUpdateMock })
+const jobDeleteMock = vi.fn()
+const storageRemoveMock = vi.fn()
 
 vi.mock('@/lib/supabase/requireAdmin', () => ({
   requireAdmin: vi.fn().mockResolvedValue({ authorized: true }),
@@ -16,6 +24,12 @@ vi.mock('@/lib/supabase/server', () => ({
         return {
           select: () => ({ eq: () => ({ single: singleMock }) }),
           update: updateMock,
+          delete: () => ({
+            eq: (_col: string, id: string) => {
+              jobDeleteMock(id)
+              return Promise.resolve({ error: null })
+            },
+          }),
         }
       }
       if (table === 'lessons') {
@@ -24,15 +38,26 @@ vi.mock('@/lib/supabase/server', () => ({
       }
       return { select: () => ({ eq: () => Promise.resolve({ count: 0 }) }) }
     },
+    storage: {
+      from: () => ({
+        remove: (paths: string[]) => {
+          storageRemoveMock(paths)
+          return Promise.resolve({ data: null, error: null })
+        },
+      }),
+    },
   }),
 }))
 
-import { GET, PATCH } from '@/app/api/jobs/[jobId]/route'
+import { GET, PATCH, DELETE } from '@/app/api/jobs/[jobId]/route'
 
 describe('/api/jobs/[jobId]', () => {
   beforeEach(() => {
     jobStatus = 'pending'
+    slicedPdfPath = null
     updateMock.mockClear()
+    jobDeleteMock.mockClear()
+    storageRemoveMock.mockClear()
   })
 
   it('GET returns the job', async () => {
@@ -62,5 +87,20 @@ describe('/api/jobs/[jobId]', () => {
     const res = await PATCH(req as any, { params: { jobId: 'job-1' } as any })
     expect(res.status).toBe(400)
     expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('DELETE removes the job with no status restriction', async () => {
+    jobStatus = 'imported'
+    const res = await DELETE(new Request('http://localhost') as any, { params: { jobId: 'job-1' } as any })
+    expect(res.status).toBe(200)
+    expect(jobDeleteMock).toHaveBeenCalledWith('job-1')
+  })
+
+  it('DELETE also removes the sliced PDF from storage if one is still attached', async () => {
+    slicedPdfPath = 'jobs/job-1.pdf'
+    const res = await DELETE(new Request('http://localhost') as any, { params: { jobId: 'job-1' } as any })
+    expect(res.status).toBe(200)
+    expect(storageRemoveMock).toHaveBeenCalledWith(['jobs/job-1.pdf'])
+    expect(jobDeleteMock).toHaveBeenCalledWith('job-1')
   })
 })
