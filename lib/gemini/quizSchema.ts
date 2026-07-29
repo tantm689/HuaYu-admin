@@ -109,7 +109,7 @@ export const GEMINI_QUIZ_RESPONSE_SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          part: { type: 'integer', enum: [1, 2], description: '1 cho pinyin_choice/listening_choice/tone_choice, 2 cho matching/fill_blank/sentence_order.' },
+          part: { type: 'integer', description: 'Luôn là 1 hoặc 2 - dùng đúng 1 cho pinyin_choice/listening_choice/tone_choice, 2 cho matching/fill_blank/sentence_order.' },
           type: {
             type: 'string',
             enum: ['pinyin_choice', 'listening_choice', 'tone_choice', 'matching', 'fill_blank', 'sentence_order'],
