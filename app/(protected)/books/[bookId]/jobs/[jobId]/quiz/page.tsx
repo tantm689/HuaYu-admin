@@ -24,7 +24,23 @@ const TYPE_LABELS: Record<QuizQuestion["type"], string> = {
   sentence_order: "Sắp xếp câu",
 }
 
+// A stable per-question identity, generated once when a question enters
+// state (on load and on generate) and carried alongside it thereafter. Using
+// this instead of the question's current array index as the React `key`
+// (and as the radio-group `name`) avoids remounting both cards involved in a
+// reorder swap - `indexOf`-based keys change for both elements whenever
+// `moveItem` swaps adjacent entries, since the index each question sits at
+// changes even though the question itself didn't.
+let nextQuestionKeyId = 0
+function makeQuestionKey(): string {
+  nextQuestionKeyId += 1
+  return `q${nextQuestionKeyId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+type KeyedQuestion = { key: string; question: QuizQuestion }
+
 function QuestionCard({
+  questionKey,
   question,
   onChange,
   onRemove,
@@ -33,6 +49,7 @@ function QuestionCard({
   canMoveUp,
   canMoveDown,
 }: {
+  questionKey: string
   question: QuizQuestion
   onChange: (patch: Partial<QuizQuestion>) => void
   onRemove: () => void
@@ -65,6 +82,7 @@ function QuestionCard({
             <div key={i} className="flex items-center gap-2">
               <input
                 type="radio"
+                name={`${questionKey}-correct`}
                 checked={question.correctIndex === i}
                 onChange={() => onChange({ correctIndex: i })}
                 aria-label={`Đáp án đúng là lựa chọn ${i + 1}`}
@@ -90,6 +108,7 @@ function QuestionCard({
             <div key={i} className="flex items-center gap-2">
               <input
                 type="radio"
+                name={`${questionKey}-correct`}
                 checked={question.correctIndex === i}
                 onChange={() => onChange({ correctIndex: i })}
                 aria-label={`Đáp án đúng là lựa chọn ${i + 1}`}
@@ -122,6 +141,7 @@ function QuestionCard({
             <div key={i} className="flex items-center gap-2">
               <input
                 type="radio"
+                name={`${questionKey}-correct`}
                 checked={question.correctIndex === i}
                 onChange={() => onChange({ correctIndex: i })}
                 aria-label={`Đáp án đúng là lựa chọn ${i + 1}`}
@@ -178,6 +198,7 @@ function QuestionCard({
             <div key={i} className="flex items-center gap-2">
               <input
                 type="radio"
+                name={`${questionKey}-correct`}
                 checked={question.correctIndex === i}
                 onChange={() => onChange({ correctIndex: i })}
                 aria-label={`Đáp án đúng là lựa chọn ${i + 1}`}
@@ -197,19 +218,54 @@ function QuestionCard({
       )}
 
       {question.type === "sentence_order" && (
-        <div className="flex flex-wrap gap-2">
-          {question.correctOrder.map((wordIdx, position) => (
-            <EditableText
-              key={position}
-              value={question.words[wordIdx]}
-              onChange={(v) => {
-                const words = [...question.words]
-                words[wordIdx] = v
-                onChange({ words })
-              }}
-              className="field-zh w-auto"
-            />
-          ))}
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-muted-foreground">
+            Các từ đã xáo trộn (thứ tự hiển thị cho học viên) — số bên dưới mỗi từ là vị trí đúng của từ đó
+            trong câu (bắt đầu từ 1):
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {question.words.map((word, wordIdx) => {
+              const correctPosition = question.correctOrder.indexOf(wordIdx)
+              return (
+                <div key={wordIdx} className="flex flex-col items-center gap-1 rounded-md border p-2">
+                  <EditableText
+                    value={word}
+                    onChange={(v) => {
+                      const words = [...question.words]
+                      words[wordIdx] = v
+                      onChange({ words })
+                    }}
+                    className="field-zh w-auto"
+                  />
+                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                    Vị trí đúng
+                    <input
+                      type="number"
+                      min={1}
+                      max={question.words.length}
+                      value={correctPosition + 1}
+                      onChange={(e) => {
+                        const newPosition = Number(e.target.value) - 1
+                        if (
+                          Number.isNaN(newPosition) ||
+                          newPosition < 0 ||
+                          newPosition >= question.words.length
+                        ) {
+                          return
+                        }
+                        const correctOrder = [...question.correctOrder]
+                        correctOrder.splice(correctPosition, 1)
+                        correctOrder.splice(newPosition, 0, wordIdx)
+                        onChange({ correctOrder })
+                      }}
+                      aria-label={`Vị trí đúng của từ "${word}" trong câu`}
+                      className="h-7 w-14 rounded-md border bg-background px-1 text-center text-sm"
+                    />
+                  </label>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -221,7 +277,7 @@ export default function JobQuizPage({ params }: Props) {
   const router = useRouter()
 
   const [job, setJob] = useState<ExtractionJob | null>(null)
-  const [questions, setQuestions] = useState<QuizQuestion[] | null>(null)
+  const [keyedQuestions, setKeyedQuestions] = useState<KeyedQuestion[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -241,7 +297,7 @@ export default function JobQuizPage({ params }: Props) {
       const jobData: ExtractionJob = await res.json()
       setJob(jobData)
       const rawQuestions = (jobData.raw_json as { quizQuestions?: QuizQuestion[] } | null)?.quizQuestions
-      setQuestions(rawQuestions ?? [])
+      setKeyedQuestions((rawQuestions ?? []).map((question) => ({ key: makeQuestionKey(), question })))
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Không tải được công việc trích xuất.")
     } finally {
@@ -257,7 +313,7 @@ export default function JobQuizPage({ params }: Props) {
   }, [loadJob])
 
   async function handleGenerate() {
-    if (questions && questions.length > 0) {
+    if (keyedQuestions && keyedQuestions.length > 0) {
       const confirmed = window.confirm(
         "Sẽ xoá toàn bộ 30 câu hỏi hiện tại (kể cả đã sửa tay) và sinh lại từ đầu, tiếp tục?"
       )
@@ -272,8 +328,8 @@ export default function JobQuizPage({ params }: Props) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? "Sinh quiz thất bại.")
       }
-      const { quizQuestions } = await res.json()
-      setQuestions(quizQuestions)
+      const { quizQuestions } = (await res.json()) as { quizQuestions: QuizQuestion[] }
+      setKeyedQuestions(quizQuestions.map((question) => ({ key: makeQuestionKey(), question })))
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Sinh quiz thất bại.")
     } finally {
@@ -282,7 +338,7 @@ export default function JobQuizPage({ params }: Props) {
   }
 
   async function handleSave() {
-    if (!questions) return
+    if (!keyedQuestions) return
     setIsSaving(true)
     setActionError(null)
     setSaveSuccess(false)
@@ -290,7 +346,7 @@ export default function JobQuizPage({ params }: Props) {
       const res = await fetch(`/api/jobs/${jobId}/quiz`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quizQuestions: questions }),
+        body: JSON.stringify({ quizQuestions: keyedQuestions.map((kq) => kq.question) }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -306,25 +362,37 @@ export default function JobQuizPage({ params }: Props) {
   }
 
   function updateQuestion(index: number, patch: Partial<QuizQuestion>) {
-    setQuestions((prev) => {
+    setKeyedQuestions((prev) => {
       if (!prev) return prev
-      return prev.map((q, i) => (i === index ? ({ ...q, ...patch } as QuizQuestion) : q))
+      return prev.map((kq, i) => (i === index ? { ...kq, question: { ...kq.question, ...patch } as QuizQuestion } : kq))
     })
   }
 
   function removeQuestion(index: number) {
-    setQuestions((prev) => (prev ? prev.filter((_, i) => i !== index) : prev))
+    setKeyedQuestions((prev) => (prev ? prev.filter((_, i) => i !== index) : prev))
   }
 
   function moveQuestion(index: number, direction: -1 | 1) {
-    setQuestions((prev) => (prev ? moveItem(prev, index, direction) : prev))
+    setKeyedQuestions((prev) => {
+      if (!prev) return prev
+      // moveItem renumbers `order` on the QuizQuestion payload it's given, so
+      // hand it the nested `question` objects and re-wrap the result with
+      // the original stable keys (re-paired by array position, which is
+      // exactly what moveItem preserves apart from the swapped pair).
+      const reordered = moveItem(
+        prev.map((kq) => kq.question),
+        index,
+        direction
+      )
+      return prev.map((kq, i) => ({ ...kq, question: reordered[i] }))
+    })
   }
 
   if (isLoading) {
     return <main className="mx-auto w-full max-w-3xl px-4 py-10 text-sm text-muted-foreground">Đang tải...</main>
   }
 
-  if (loadError || !job || !questions) {
+  if (loadError || !job || !keyedQuestions) {
     return (
       <>
         <div className="w-full px-4 pt-6 sm:px-6">
@@ -337,8 +405,8 @@ export default function JobQuizPage({ params }: Props) {
     )
   }
 
-  const part1 = questions.filter((q) => q.part === 1)
-  const part2 = questions.filter((q) => q.part === 2)
+  const part1 = keyedQuestions.filter((kq) => kq.question.part === 1)
+  const part2 = keyedQuestions.filter((kq) => kq.question.part === 2)
 
   return (
     <>
@@ -360,9 +428,9 @@ export default function JobQuizPage({ params }: Props) {
 
         <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-4">
           <Button type="button" onClick={handleGenerate} disabled={isGenerating}>
-            {isGenerating ? "Đang sinh quiz..." : questions.length > 0 ? "Sinh lại Quiz" : "Sinh Quiz"}
+            {isGenerating ? "Đang sinh quiz..." : keyedQuestions.length > 0 ? "Sinh lại Quiz" : "Sinh Quiz"}
           </Button>
-          {questions.length > 0 && (
+          {keyedQuestions.length > 0 && (
             <Button type="button" variant="outline" onClick={handleSave} disabled={isSaving}>
               {isSaving ? "Đang lưu..." : "Lưu"}
             </Button>
@@ -372,25 +440,26 @@ export default function JobQuizPage({ params }: Props) {
 
         {actionError && <p className="text-sm text-destructive">{actionError}</p>}
 
-        {questions.length === 0 && !isGenerating && (
+        {keyedQuestions.length === 0 && !isGenerating && (
           <p className="text-sm text-muted-foreground">Chưa có câu hỏi quiz nào. Bấm &quot;Sinh Quiz&quot; để bắt đầu.</p>
         )}
 
         {part1.length > 0 && (
           <section className="flex flex-col gap-3">
             <h2 className="text-base font-semibold text-foreground">Phần 1 ({part1.length} câu)</h2>
-            {part1.map((q) => {
-              const index = questions.indexOf(q)
+            {part1.map((kq) => {
+              const index = keyedQuestions.indexOf(kq)
               return (
                 <QuestionCard
-                  key={index}
-                  question={q}
+                  key={kq.key}
+                  questionKey={kq.key}
+                  question={kq.question}
                   onChange={(patch) => updateQuestion(index, patch)}
                   onRemove={() => removeQuestion(index)}
                   onMoveUp={() => moveQuestion(index, -1)}
                   onMoveDown={() => moveQuestion(index, 1)}
                   canMoveUp={index > 0}
-                  canMoveDown={index < questions.length - 1}
+                  canMoveDown={index < keyedQuestions.length - 1}
                 />
               )
             })}
@@ -400,18 +469,19 @@ export default function JobQuizPage({ params }: Props) {
         {part2.length > 0 && (
           <section className="flex flex-col gap-3">
             <h2 className="text-base font-semibold text-foreground">Phần 2 ({part2.length} câu)</h2>
-            {part2.map((q) => {
-              const index = questions.indexOf(q)
+            {part2.map((kq) => {
+              const index = keyedQuestions.indexOf(kq)
               return (
                 <QuestionCard
-                  key={index}
-                  question={q}
+                  key={kq.key}
+                  questionKey={kq.key}
+                  question={kq.question}
                   onChange={(patch) => updateQuestion(index, patch)}
                   onRemove={() => removeQuestion(index)}
                   onMoveUp={() => moveQuestion(index, -1)}
                   onMoveDown={() => moveQuestion(index, 1)}
                   canMoveUp={index > 0}
-                  canMoveDown={index < questions.length - 1}
+                  canMoveDown={index < keyedQuestions.length - 1}
                 />
               )
             })}
