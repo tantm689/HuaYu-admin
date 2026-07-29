@@ -191,6 +191,16 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
         await insertSections(sp.sections, { grammar_sub_point_id: spRow.id })
       }
     }
+
+    if (result.quizQuestions.length > 0) {
+      const { error: quizError } = await supabase.from('quiz_questions').insert(
+        result.quizQuestions.map((q) => {
+          const { part, type, order, ...payload } = q
+          return { lesson_id: lesson.id, part, type, order, payload }
+        })
+      )
+      if (quizError) throw new Error(quizError.message)
+    }
   } catch (err) {
     // A partial import (lesson committed, some children inserted) can never
     // be retried cleanly - the unique (book_id, lesson_no) constraint blocks
