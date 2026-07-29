@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { BackLink } from "@/components/back-link"
 import { EditableText } from "@/components/editable-text"
 import { BlockActions } from "@/components/block-actions"
-import { moveItem } from "@/lib/moveItem"
+import { canMoveWithinPart, moveQuestionWithinPart } from "@/lib/quizReorder"
 import type { ExtractionJob } from "@/lib/db/types"
 import type { QuizQuestion } from "@/lib/gemini/quizSchema"
 
@@ -375,11 +375,12 @@ export default function JobQuizPage({ params }: Props) {
   function moveQuestion(index: number, direction: -1 | 1) {
     setKeyedQuestions((prev) => {
       if (!prev) return prev
-      // moveItem renumbers `order` on the QuizQuestion payload it's given, so
-      // hand it the nested `question` objects and re-wrap the result with
-      // the original stable keys (re-paired by array position, which is
-      // exactly what moveItem preserves apart from the swapped pair).
-      const reordered = moveItem(
+      // moveQuestionWithinPart swaps `index` only with its nearest same-part
+      // neighbor (never crossing the Part 1 / Part 2 boundary) and renumbers
+      // `order` 1..N within each part - see lib/quizReorder.ts. It operates
+      // on the nested `question` objects (which carry `part`/`order`); the
+      // stable keys are re-paired by array position afterward.
+      const reordered = moveQuestionWithinPart(
         prev.map((kq) => kq.question),
         index,
         direction
@@ -458,8 +459,16 @@ export default function JobQuizPage({ params }: Props) {
                   onRemove={() => removeQuestion(index)}
                   onMoveUp={() => moveQuestion(index, -1)}
                   onMoveDown={() => moveQuestion(index, 1)}
-                  canMoveUp={index > 0}
-                  canMoveDown={index < keyedQuestions.length - 1}
+                  canMoveUp={canMoveWithinPart(
+                    keyedQuestions.map((k) => k.question),
+                    index,
+                    -1
+                  )}
+                  canMoveDown={canMoveWithinPart(
+                    keyedQuestions.map((k) => k.question),
+                    index,
+                    1
+                  )}
                 />
               )
             })}
@@ -480,8 +489,16 @@ export default function JobQuizPage({ params }: Props) {
                   onRemove={() => removeQuestion(index)}
                   onMoveUp={() => moveQuestion(index, -1)}
                   onMoveDown={() => moveQuestion(index, 1)}
-                  canMoveUp={index > 0}
-                  canMoveDown={index < keyedQuestions.length - 1}
+                  canMoveUp={canMoveWithinPart(
+                    keyedQuestions.map((k) => k.question),
+                    index,
+                    -1
+                  )}
+                  canMoveDown={canMoveWithinPart(
+                    keyedQuestions.map((k) => k.question),
+                    index,
+                    1
+                  )}
                 />
               )
             })}

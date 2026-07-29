@@ -27,10 +27,12 @@ export async function generateJobQuiz(jobId: string): Promise<QuizQuestion[]> {
   const result = ExtractionResultSchema.parse(job.raw_json)
   const quizQuestions = await generateQuiz(result)
 
-  await supabase
+  const { error: updateError } = await supabase
     .from('extraction_jobs')
     .update({ raw_json: { ...result, quizQuestions } })
     .eq('id', jobId)
+
+  if (updateError) throw new Error(updateError.message)
 
   return quizQuestions
 }
@@ -46,10 +48,12 @@ export async function saveJobQuiz(jobId: string, quizQuestions: QuizQuestion[]):
   const result = ExtractionResultSchema.parse(job.raw_json)
   const nextStatus: JobStatus = job.status === 'audio_ready' ? 'quiz_ready' : job.status
 
-  await supabase
+  const { error: updateError } = await supabase
     .from('extraction_jobs')
     .update({ raw_json: { ...result, quizQuestions }, status: nextStatus })
     .eq('id', jobId)
+
+  if (updateError) throw new Error(updateError.message)
 
   return nextStatus
 }

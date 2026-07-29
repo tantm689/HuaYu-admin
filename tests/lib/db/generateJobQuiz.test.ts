@@ -8,6 +8,7 @@ vi.mock('@/lib/gemini/generateQuiz', () => ({
 
 let jobStatus = 'audio_ready'
 let rawJson: any
+let updateError: { message: string } | null = null
 const updateMock = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -19,6 +20,7 @@ vi.mock('@/lib/supabase/server', () => ({
           update: (row: any) => ({
             eq: () => {
               updateMock(row)
+              if (updateError) return Promise.resolve({ error: updateError })
               if ('raw_json' in row) rawJson = row.raw_json
               if ('status' in row) jobStatus = row.status
               return Promise.resolve({ error: null })
@@ -56,6 +58,7 @@ describe('generateJobQuiz', () => {
   beforeEach(() => {
     jobStatus = 'audio_ready'
     rawJson = baseRawJson()
+    updateError = null
     updateMock.mockClear()
     generateQuizMock.mockClear()
   })
@@ -79,12 +82,19 @@ describe('generateJobQuiz', () => {
     expect(rawJson.quizQuestions).toHaveLength(30)
     expect(rawJson.quizQuestions[0].prompt).toBe('x')
   })
+
+  it('throws when the DB update fails, instead of silently succeeding', async () => {
+    generateQuizMock.mockResolvedValue(thirtyQuestions)
+    updateError = { message: 'connection reset' }
+    await expect(generateJobQuiz('job-1')).rejects.toThrow('connection reset')
+  })
 })
 
 describe('saveJobQuiz', () => {
   beforeEach(() => {
     jobStatus = 'audio_ready'
     rawJson = baseRawJson()
+    updateError = null
     updateMock.mockClear()
   })
 
@@ -99,5 +109,10 @@ describe('saveJobQuiz', () => {
     jobStatus = 'quiz_ready'
     const status = await saveJobQuiz('job-1', thirtyQuestions)
     expect(status).toBe('quiz_ready')
+  })
+
+  it('throws when the DB update fails, instead of silently reporting saved', async () => {
+    updateError = { message: 'connection reset' }
+    await expect(saveJobQuiz('job-1', thirtyQuestions)).rejects.toThrow('connection reset')
   })
 })

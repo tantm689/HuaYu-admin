@@ -24,3 +24,18 @@ create table quiz_questions (
 );
 
 create index quiz_questions_lesson_id_idx on quiz_questions(lesson_id);
+
+alter table quiz_questions enable row level security;
+
+-- quiz_questions: anon may only read quiz questions belonging to a published
+-- lesson (same pattern as vocabulary/grammar_points in 0003_enable_rls.sql).
+create policy "anon can read quiz questions of published lessons"
+  on quiz_questions for select
+  to anon
+  using (
+    exists (
+      select 1 from lessons
+      where lessons.id = quiz_questions.lesson_id
+        and lessons.status = 'published'
+    )
+  );

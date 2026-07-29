@@ -88,6 +88,50 @@ describe('QuizQuestionSchema', () => {
     expect(result.success).toBe(true)
   })
 
+  it('accepts a valid sentence_order question whose correctOrder is a shuffled permutation', () => {
+    const result = QuizQuestionSchema.safeParse({
+      part: 2,
+      type: 'sentence_order',
+      order: 3,
+      words: ['我', '喜歡', '吃', '中國菜'],
+      correctOrder: [3, 0, 1, 2],
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects a sentence_order question whose correctOrder repeats an index (not a permutation)', () => {
+    const result = QuizQuestionSchema.safeParse({
+      part: 2,
+      type: 'sentence_order',
+      order: 3,
+      words: ['我', '喜歡'],
+      correctOrder: [0, 0, 7],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects a sentence_order question whose correctOrder is the wrong length', () => {
+    const result = QuizQuestionSchema.safeParse({
+      part: 2,
+      type: 'sentence_order',
+      order: 3,
+      words: ['我', '喜歡', '吃'],
+      correctOrder: [0, 1],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects a sentence_order question whose correctOrder has an out-of-range index', () => {
+    const result = QuizQuestionSchema.safeParse({
+      part: 2,
+      type: 'sentence_order',
+      order: 3,
+      words: ['我', '喜歡', '吃'],
+      correctOrder: [0, 1, 3],
+    })
+    expect(result.success).toBe(false)
+  })
+
   it('rejects an unknown type', () => {
     const result = QuizQuestionSchema.safeParse({
       part: 1,

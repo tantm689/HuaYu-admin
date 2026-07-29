@@ -61,14 +61,37 @@ const SentenceOrderSchema = z.object({
   correctOrder: z.array(z.number()),
 })
 
-export const QuizQuestionSchema = z.discriminatedUnion('type', [
-  PinyinChoiceSchema,
-  ListeningChoiceSchema,
-  ToneChoiceSchema,
-  MatchingSchema,
-  FillBlankSchema,
-  SentenceOrderSchema,
-])
+// z.discriminatedUnion requires each member to be a plain ZodObject with a
+// literal discriminator field, so the `correctOrder`-is-a-permutation check
+// can't live as a `.refine()` on SentenceOrderSchema itself (that would wrap
+// it in a ZodEffects and break the union). Applied as a `.superRefine()` on
+// the whole union instead, gated on `type === 'sentence_order'`.
+export const QuizQuestionSchema = z
+  .discriminatedUnion('type', [
+    PinyinChoiceSchema,
+    ListeningChoiceSchema,
+    ToneChoiceSchema,
+    MatchingSchema,
+    FillBlankSchema,
+    SentenceOrderSchema,
+  ])
+  .superRefine((q, ctx) => {
+    if (q.type !== 'sentence_order') return
+
+    const { words, correctOrder } = q
+    const isPermutation =
+      correctOrder.length === words.length &&
+      new Set(correctOrder).size === words.length &&
+      correctOrder.every((i) => Number.isInteger(i) && i >= 0 && i < words.length)
+
+    if (!isPermutation) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['correctOrder'],
+        message: 'correctOrder must be a permutation of words indices',
+      })
+    }
+  })
 
 export type QuizQuestion = z.infer<typeof QuizQuestionSchema>
 
