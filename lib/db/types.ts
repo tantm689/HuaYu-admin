@@ -99,3 +99,20 @@ export interface ExtractionJob {
   error_message: string | null
   created_at: string
 }
+
+export type QuizQuestionType =
+  | 'pinyin_choice'
+  | 'listening_choice'
+  | 'tone_choice'
+  | 'matching'
+  | 'fill_blank'
+  | 'sentence_order'
+
+export interface QuizQuestion {
+  id: string
+  lesson_id: string
+  part: 1 | 2
+  type: QuizQuestionType
+  order: number
+  payload: unknown
+}
