@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { QuizQuestionSchema } from './quizSchema'
 
 const nullableString = z.string().nullable().default(null)
 
@@ -76,6 +77,7 @@ export const ExtractionResultSchema = z.object({
   lesson: LessonMetaSchema,
   dialogues: z.array(DialogueSchema),
   grammarPoints: z.array(GrammarPointSchema),
+  quizQuestions: z.array(QuizQuestionSchema).default([]),
 })
 
 export type ExtractionResult = z.infer<typeof ExtractionResultSchema>
