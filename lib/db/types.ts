@@ -1,5 +1,5 @@
 export type LessonStatus = 'draft' | 'reviewed' | 'published'
-export type JobStatus = 'pending' | 'reviewed' | 'imported' | 'failed'
+export type JobStatus = 'pending' | 'reviewed' | 'audio_ready' | 'quiz_ready' | 'imported' | 'failed'
 
 export interface Book {
   id: string
@@ -20,12 +20,13 @@ export interface Lesson {
   created_at: string
 }
 
+export type DialogueKind = 'dialogue' | 'passage'
+
 export interface Dialogue {
   id: string
   lesson_id: string
   order: number
-  title_zh: string | null
-  title_vi: string | null
+  kind: DialogueKind
   audio_code: string | null
   audio_url: string | null
 }
@@ -39,11 +40,12 @@ export interface DialogueLine {
   text_zh: string
   pinyin: string | null
   translation_vi: string | null
+  audio_url: string | null
 }
 
 export interface VocabularyEntry {
   id: string
-  lesson_id: string
+  dialogue_id: string
   order: number
   word_zh: string
   pinyin: string | null
@@ -55,9 +57,7 @@ export interface GrammarPoint {
   id: string
   lesson_id: string
   order: number
-  title_zh: string
   title_vi: string | null
-  structure_note: string | null
 }
 
 export interface GrammarSubPoint {
@@ -65,15 +65,22 @@ export interface GrammarSubPoint {
   grammar_point_id: string
   order: number
   label: string
-  title_zh: string | null
   title_vi: string | null
-  structure_note: string | null
+}
+
+export interface GrammarSection {
+  id: string
+  grammar_point_id: string | null
+  grammar_sub_point_id: string | null
+  parent_section_id: string | null
+  order: number
+  label: string
+  content: string | null
 }
 
 export interface GrammarExample {
   id: string
-  grammar_point_id: string | null
-  grammar_sub_point_id: string | null
+  grammar_section_id: string
   order: number
   text_zh: string
   pinyin: string | null

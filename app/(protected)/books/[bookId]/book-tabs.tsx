@@ -27,7 +27,9 @@ const lessonStatusVariant: Record<Lesson["status"], BadgeVariant> = {
 
 const jobStatusLabel: Record<ExtractionJob["status"], string> = {
   pending: "Đang chờ",
-  reviewed: "Đã duyệt",
+  reviewed: "Đã duyệt text",
+  audio_ready: "Đã duyệt audio",
+  quiz_ready: "Đã duyệt quiz",
   imported: "Đã nhập",
   failed: "Lỗi",
 }
@@ -35,6 +37,8 @@ const jobStatusLabel: Record<ExtractionJob["status"], string> = {
 const jobStatusVariant: Record<ExtractionJob["status"], BadgeVariant> = {
   pending: "pending",
   reviewed: "info",
+  audio_ready: "info",
+  quiz_ready: "info",
   imported: "success",
   failed: "destructive",
 }
@@ -155,7 +159,7 @@ export function BookTabs({ bookId, lessons, jobs }: Props) {
             </CardContent>
           </Card>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
             {lessons.map((lesson) => (
               <Link key={lesson.id} href={`/lessons/${lesson.id}`}>
                 <Card className="cursor-pointer transition-all hover:border-primary/40 hover:shadow-md">
@@ -192,7 +196,7 @@ export function BookTabs({ bookId, lessons, jobs }: Props) {
             </CardContent>
           </Card>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
             {activeJobs.map((job) => (
               <JobCard
                 key={job.id}
@@ -210,7 +214,7 @@ export function BookTabs({ bookId, lessons, jobs }: Props) {
                     Đã nhập ({importedJobs.length})
                   </AccordionTrigger>
                   <AccordionContent>
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-4 pt-1">
                       {importedJobs.map((job) => (
                         <JobCard
                           key={job.id}

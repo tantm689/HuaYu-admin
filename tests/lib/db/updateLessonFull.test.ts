@@ -11,8 +11,6 @@ const {
   vocabUpdateMock,
   vocabInsertMock,
   vocabDeleteMock,
-  generateVocabAudioMock,
-  storageUploadMock,
   storageRemoveMock,
   gpUpdateMock,
   gpInsertMock,
@@ -20,6 +18,8 @@ const {
   spUpdateMock,
   spInsertMock,
   spDeleteMock,
+  sectionUpsertMock,
+  sectionDeleteMock,
   gpExampleUpsertMock,
   gpExampleDeleteMock,
 } = vi.hoisted(() => ({
@@ -33,8 +33,6 @@ const {
   vocabUpdateMock: vi.fn(),
   vocabInsertMock: vi.fn(),
   vocabDeleteMock: vi.fn(),
-  generateVocabAudioMock: vi.fn().mockResolvedValue(new Uint8Array([1])),
-  storageUploadMock: vi.fn(),
   storageRemoveMock: vi.fn(),
   gpUpdateMock: vi.fn(),
   gpInsertMock: vi.fn(),
@@ -42,11 +40,11 @@ const {
   spUpdateMock: vi.fn(),
   spInsertMock: vi.fn(),
   spDeleteMock: vi.fn(),
+  sectionUpsertMock: vi.fn(),
+  sectionDeleteMock: vi.fn(),
   gpExampleUpsertMock: vi.fn(),
   gpExampleDeleteMock: vi.fn(),
 }))
-
-vi.mock('@/lib/tts/edgeTts', () => ({ generateVocabAudio: generateVocabAudioMock }))
 
 // Existing rows in the fake DB, keyed by table, used to answer the
 // "which ids already exist" select() the sync functions issue before diffing.
@@ -56,10 +54,12 @@ const existing = {
   vocabulary: [{ id: 'vocab-1' }],
   grammar_points: [] as { id: string }[],
   grammar_sub_points: [] as { id: string }[],
+  grammar_sections: [] as { id: string }[],
   grammar_examples: [] as { id: string }[],
 }
 
 let lessonStatus: string = 'draft'
+let sectionInsertCounter = 0
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabase: () => ({
@@ -72,6 +72,7 @@ vi.mock('@/lib/supabase/server', () => ({
           if (table === 'vocabulary') vocabUpdateMock(row)
           if (table === 'grammar_points') gpUpdateMock(row)
           if (table === 'grammar_sub_points') spUpdateMock(row)
+          if (table === 'grammar_sections') sectionUpsertMock(row)
           if (table === 'grammar_examples') gpExampleUpsertMock(row)
           return Promise.resolve({ error: null })
         },
@@ -87,7 +88,7 @@ vi.mock('@/lib/supabase/server', () => ({
         }
         if (table === 'vocabulary') {
           vocabInsertMock(row)
-          return { select: () => ({ single: () => Promise.resolve({ data: { id: 'vocab-new' }, error: null }) }) }
+          return Promise.resolve({ error: null })
         }
         if (table === 'grammar_points') {
           gpInsertMock(row)
@@ -96,6 +97,12 @@ vi.mock('@/lib/supabase/server', () => ({
         if (table === 'grammar_sub_points') {
           spInsertMock(row)
           return { select: () => ({ single: () => Promise.resolve({ data: { id: 'sp-new' }, error: null }) }) }
+        }
+        if (table === 'grammar_sections') {
+          sectionUpsertMock(row)
+          sectionInsertCounter += 1
+          const id = `sec-new-${sectionInsertCounter}`
+          return { select: () => ({ single: () => Promise.resolve({ data: { id }, error: null }) }) }
         }
         if (table === 'grammar_examples') {
           gpExampleUpsertMock(row)
@@ -110,9 +117,14 @@ vi.mock('@/lib/supabase/server', () => ({
           if (table === 'vocabulary') vocabDeleteMock(ids)
           if (table === 'grammar_points') gpDeleteMock(ids)
           if (table === 'grammar_sub_points') spDeleteMock(ids)
+          if (table === 'grammar_sections') sectionDeleteMock(ids)
           if (table === 'grammar_examples') gpExampleDeleteMock(ids)
           return Promise.resolve({ error: null })
         },
+        // syncGrammarSections clears a section's stale item rows via
+        // .delete().eq('parent_section_id', sectionId) when it has no items
+        // in the payload (not an .in() id-list diff like the other tables).
+        eq: () => Promise.resolve({ error: null }),
       }),
       select: () => ({
         eq: () => {
@@ -129,11 +141,6 @@ vi.mock('@/lib/supabase/server', () => ({
     }),
     storage: {
       from: () => ({
-        upload: (path: string, body: unknown, options: unknown) => {
-          storageUploadMock(path, options)
-          return Promise.resolve({ data: { path }, error: null })
-        },
-        getPublicUrl: () => ({ data: { publicUrl: 'https://x/f.mp3' } }),
         remove: (paths: string[]) => {
           storageRemoveMock(paths)
           return Promise.resolve({ data: null, error: null })
@@ -148,6 +155,7 @@ import { updateLessonFull, LessonNotEditableError } from '@/lib/db/updateLessonF
 describe('updateLessonFull', () => {
   beforeEach(() => {
     lessonStatus = 'draft'
+    sectionInsertCounter = 0
     lessonUpdateMock.mockClear()
     dialogueUpdateMock.mockClear()
     dialogueInsertMock.mockClear()
@@ -158,8 +166,6 @@ describe('updateLessonFull', () => {
     vocabUpdateMock.mockClear()
     vocabInsertMock.mockClear()
     vocabDeleteMock.mockClear()
-    generateVocabAudioMock.mockClear()
-    storageUploadMock.mockClear()
     storageRemoveMock.mockClear()
     gpUpdateMock.mockClear()
     gpInsertMock.mockClear()
@@ -167,17 +173,20 @@ describe('updateLessonFull', () => {
     spUpdateMock.mockClear()
     spInsertMock.mockClear()
     spDeleteMock.mockClear()
+    sectionUpsertMock.mockClear()
+    sectionDeleteMock.mockClear()
     gpExampleUpsertMock.mockClear()
     gpExampleDeleteMock.mockClear()
     existing.grammar_points = []
     existing.grammar_sub_points = []
+    existing.grammar_sections = []
   })
 
   it('rejects edits when the lesson is not in draft status', async () => {
     lessonStatus = 'published'
     await expect(
       updateLessonFull('lesson-1', {
-        titleZh: 'A', titleVi: 'B', dialogues: [], vocabulary: [], grammarPoints: [],
+        titleZh: 'A', titleVi: 'B', dialogues: [], grammarPoints: [],
       })
     ).rejects.toThrow(LessonNotEditableError)
     expect(lessonUpdateMock).not.toHaveBeenCalled()
@@ -185,7 +194,7 @@ describe('updateLessonFull', () => {
 
   it('updates lesson meta fields', async () => {
     await updateLessonFull('lesson-1', {
-      titleZh: 'A2', titleVi: 'B2', dialogues: [], vocabulary: [], grammarPoints: [],
+      titleZh: 'A2', titleVi: 'B2', dialogues: [], grammarPoints: [],
     })
     expect(lessonUpdateMock).toHaveBeenCalledWith({ title_zh: 'A2', title_vi: 'B2', theme: null, objectives: [] })
   })
@@ -194,13 +203,13 @@ describe('updateLessonFull', () => {
     await updateLessonFull('lesson-1', {
       titleZh: 'A', titleVi: 'B',
       dialogues: [{
-        id: 'dlg-1', order: 1, titleZh: 'Z', titleVi: null, audioCode: '01-1',
+        id: 'dlg-1', order: 1, kind: 'passage', audioCode: '01-1',
         lines: [{ id: 'line-1', order: 1, speakerZh: null, speakerPinyin: null, textZh: 'hi', pinyin: null, translationVi: null }],
       }],
-      vocabulary: [], grammarPoints: [],
+      grammarPoints: [],
     })
     expect(dialogueUpdateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ title_zh: 'Z', audio_code: '01-1' })
+      expect.objectContaining({ audio_code: '01-1', kind: 'passage' })
     )
     expect(dialogueUpdateMock.mock.calls[0][0]).not.toHaveProperty('audio_url')
     expect(lineUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ text_zh: 'hi' }))
@@ -211,89 +220,114 @@ describe('updateLessonFull', () => {
     await updateLessonFull('lesson-1', {
       titleZh: 'A', titleVi: 'B',
       dialogues: [
-        { id: 'dlg-1', order: 1, titleZh: null, titleVi: null, audioCode: null, lines: [{ id: 'line-1', order: 1, speakerZh: null, speakerPinyin: null, textZh: 'x', pinyin: null, translationVi: null }] },
-        { id: null, order: 2, titleZh: 'New', titleVi: null, audioCode: null, lines: [{ id: null, order: 1, speakerZh: null, speakerPinyin: null, textZh: 'new line', pinyin: null, translationVi: null }] },
+        { id: 'dlg-1', order: 1, audioCode: null, lines: [{ id: 'line-1', order: 1, speakerZh: null, speakerPinyin: null, textZh: 'x', pinyin: null, translationVi: null }] },
+        { id: null, order: 2, audioCode: null, lines: [{ id: null, order: 1, speakerZh: null, speakerPinyin: null, textZh: 'new line', pinyin: null, translationVi: null }] },
       ],
-      vocabulary: [], grammarPoints: [],
+      grammarPoints: [],
     })
-    expect(dialogueInsertMock).toHaveBeenCalledWith(expect.objectContaining({ title_zh: 'New' }))
+    expect(dialogueInsertMock).toHaveBeenCalledWith(expect.objectContaining({ order: 2, kind: 'dialogue' }))
     expect(lineInsertMock).toHaveBeenCalledWith(expect.objectContaining({ dialogue_id: 'dlg-new', text_zh: 'new line' }))
   })
 
   it('deletes a dialogue missing from the payload and removes its audio file', async () => {
     await updateLessonFull('lesson-1', {
-      titleZh: 'A', titleVi: 'B', dialogues: [], vocabulary: [], grammarPoints: [],
+      titleZh: 'A', titleVi: 'B', dialogues: [], grammarPoints: [],
     })
     expect(storageRemoveMock).toHaveBeenCalledWith(['dialogues/dlg-1.mp3'])
     expect(dialogueDeleteMock).toHaveBeenCalledWith(['dlg-1'])
   })
 
-  it('updates an existing vocab entry without regenerating audio', async () => {
+  it('updates an existing vocab entry in place', async () => {
     await updateLessonFull('lesson-1', {
-      titleZh: 'A', titleVi: 'B', dialogues: [],
-      vocabulary: [{ id: 'vocab-1', order: 1, wordZh: '你好', pinyin: null, meaningVi: 'hi' }],
+      titleZh: 'A', titleVi: 'B',
+      dialogues: [{
+        id: 'dlg-1', order: 1, audioCode: null,
+        lines: [{ id: 'line-1', order: 1, speakerZh: null, speakerPinyin: null, textZh: 'x', pinyin: null, translationVi: null }],
+        vocabulary: [{ id: 'vocab-1', order: 1, wordZh: '你好', pinyin: null, meaningVi: 'hi' }],
+      }],
       grammarPoints: [],
     })
     expect(vocabUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ meaning_vi: 'hi' }))
-    expect(generateVocabAudioMock).not.toHaveBeenCalled()
   })
 
-  it('inserts a new vocab entry and generates its audio', async () => {
+  it('inserts a new vocab entry under the dialogue_id', async () => {
     await updateLessonFull('lesson-1', {
-      titleZh: 'A', titleVi: 'B', dialogues: [],
-      vocabulary: [
-        { id: 'vocab-1', order: 1, wordZh: '你好', pinyin: null, meaningVi: null },
-        { id: null, order: 2, wordZh: '謝謝', pinyin: null, meaningVi: 'cảm ơn' },
-      ],
+      titleZh: 'A', titleVi: 'B',
+      dialogues: [{
+        id: 'dlg-1', order: 1, audioCode: null,
+        lines: [{ id: 'line-1', order: 1, speakerZh: null, speakerPinyin: null, textZh: 'x', pinyin: null, translationVi: null }],
+        vocabulary: [
+          { id: 'vocab-1', order: 1, wordZh: '你好', pinyin: null, meaningVi: null },
+          { id: null, order: 2, wordZh: '謝謝', pinyin: null, meaningVi: 'cảm ơn' },
+        ],
+      }],
       grammarPoints: [],
     })
-    expect(vocabInsertMock).toHaveBeenCalledWith(expect.objectContaining({ word_zh: '謝謝' }))
-    expect(generateVocabAudioMock).toHaveBeenCalledWith('謝謝')
-    expect(storageUploadMock).toHaveBeenCalledWith('vocab/vocab-new.mp3', expect.objectContaining({ contentType: 'audio/mpeg' }))
+    expect(vocabInsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ dialogue_id: 'dlg-1', word_zh: '謝謝' })
+    )
   })
 
-  it('deletes a vocab entry missing from the payload and removes its audio file', async () => {
+  it('deletes a vocab entry missing from the payload (dialogue kept) and removes its audio file', async () => {
     await updateLessonFull('lesson-1', {
-      titleZh: 'A', titleVi: 'B', dialogues: [], vocabulary: [], grammarPoints: [],
+      titleZh: 'A', titleVi: 'B',
+      dialogues: [{
+        id: 'dlg-1', order: 1, audioCode: null,
+        lines: [{ id: 'line-1', order: 1, speakerZh: null, speakerPinyin: null, textZh: 'x', pinyin: null, translationVi: null }],
+        vocabulary: [],
+      }],
+      grammarPoints: [],
     })
     expect(storageRemoveMock).toHaveBeenCalledWith(['vocab/vocab-1.mp3'])
     expect(vocabDeleteMock).toHaveBeenCalledWith(['vocab-1'])
   })
 
-  it('inserts a new grammar point with a flat example (no sub-points)', async () => {
+  it('inserts a new grammar point with a section and its example (no sub-points)', async () => {
     await updateLessonFull('lesson-1', {
-      titleZh: 'A', titleVi: 'B', dialogues: [], vocabulary: [],
+      titleZh: 'A', titleVi: 'B', dialogues: [],
       grammarPoints: [{
-        id: null, order: 1, titleZh: 'G1', titleVi: null, structureNote: 'note',
-        examples: [{ id: null, order: 1, textZh: 'ex', pinyin: null, translationVi: null }],
+        id: null, order: 1, titleVi: 'G1',
+        sections: [{
+          id: null, order: 1, label: 'Cấu trúc', content: 'note',
+          examples: [{ id: null, order: 1, textZh: 'ex', pinyin: null, translationVi: null }],
+        }],
         subPoints: [],
       }],
     })
-    expect(gpInsertMock).toHaveBeenCalledWith(expect.objectContaining({ title_zh: 'G1', structure_note: 'note' }))
+    expect(gpInsertMock).toHaveBeenCalledWith(expect.objectContaining({ title_vi: 'G1' }))
+    expect(sectionUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ grammar_point_id: 'gp-new', label: 'Cấu trúc', content: 'note' })
+    )
     expect(gpExampleUpsertMock).toHaveBeenCalledWith(
-      expect.objectContaining({ grammar_point_id: 'gp-new', text_zh: 'ex' })
+      expect.objectContaining({ grammar_section_id: 'sec-new-1', text_zh: 'ex' })
     )
     expect(spInsertMock).not.toHaveBeenCalled()
   })
 
-  it('inserts a new grammar sub-point and its example under grammar_sub_point_id', async () => {
+  it('inserts a new grammar sub-point and its section/example under grammar_sub_point_id', async () => {
     existing.grammar_points = [{ id: 'gp-1' }]
     await updateLessonFull('lesson-1', {
-      titleZh: 'A', titleVi: 'B', dialogues: [], vocabulary: [],
+      titleZh: 'A', titleVi: 'B', dialogues: [],
       grammarPoints: [{
-        id: 'gp-1', order: 1, titleZh: 'G1', titleVi: null, structureNote: null, examples: [],
+        id: 'gp-1', order: 1, titleVi: 'G1', sections: [],
         subPoints: [{
-          id: null, order: 1, label: 'A', titleZh: 'A1', titleVi: null, structureNote: 'sub note',
-          examples: [{ id: null, order: 1, textZh: 'sub-ex', pinyin: null, translationVi: null }],
+          id: null, order: 1, label: 'A', titleVi: 'A1',
+          sections: [{
+            id: null, order: 1, label: 'Cấu trúc', content: 'sub note',
+            examples: [{ id: null, order: 1, textZh: 'sub-ex', pinyin: null, translationVi: null }],
+          }],
         }],
       }],
     })
-    expect(gpUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ title_zh: 'G1' }))
+    expect(gpUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ title_vi: 'G1' }))
     expect(spInsertMock).toHaveBeenCalledWith(
-      expect.objectContaining({ grammar_point_id: 'gp-1', label: 'A', structure_note: 'sub note' })
+      expect.objectContaining({ grammar_point_id: 'gp-1', label: 'A' })
+    )
+    expect(sectionUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ grammar_sub_point_id: 'sp-new', content: 'sub note' })
     )
     expect(gpExampleUpsertMock).toHaveBeenCalledWith(
-      expect.objectContaining({ grammar_sub_point_id: 'sp-new', text_zh: 'sub-ex' })
+      expect.objectContaining({ grammar_section_id: 'sec-new-1', text_zh: 'sub-ex' })
     )
   })
 
@@ -301,7 +335,7 @@ describe('updateLessonFull', () => {
     existing.grammar_points = [{ id: 'gp-old' }]
     existing.grammar_sub_points = [{ id: 'sp-old' }]
     await updateLessonFull('lesson-1', {
-      titleZh: 'A', titleVi: 'B', dialogues: [], vocabulary: [], grammarPoints: [],
+      titleZh: 'A', titleVi: 'B', dialogues: [], grammarPoints: [],
     })
     expect(gpDeleteMock).toHaveBeenCalledWith(['gp-old'])
   })

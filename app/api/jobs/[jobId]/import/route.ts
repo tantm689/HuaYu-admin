@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { importExtractionJob, JobAlreadyImportedError } from '@/lib/db/importJob'
+import { importExtractionJob, JobAlreadyImportedError, JobNotReadyForImportError } from '@/lib/db/importJob'
 import { requireAdmin } from '@/lib/supabase/requireAdmin'
 
 export async function POST(
@@ -14,7 +14,7 @@ export async function POST(
     const result = await importExtractionJob(jobId)
     return NextResponse.json(result, { status: 201 })
   } catch (err) {
-    if (err instanceof JobAlreadyImportedError) {
+    if (err instanceof JobAlreadyImportedError || err instanceof JobNotReadyForImportError) {
       return NextResponse.json({ error: err.message }, { status: 400 })
     }
     const message = err instanceof Error ? err.message : 'unknown import error'

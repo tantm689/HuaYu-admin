@@ -33,7 +33,7 @@ describe('extractLessonFromPdf', () => {
     const result = await extractLessonFromPdf(new Uint8Array([1, 2, 3]), 1)
     expect(result.lesson.lessonNo).toBe(1)
     expect(generateContentMock).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'gemini-3.5-flash-lite' })
+      expect.objectContaining({ model: 'gemini-3.5-flash' })
     )
   })
 

@@ -1,12 +1,13 @@
 "use client"
 
-import { use, useRef, useState, type FormEvent } from "react"
+import { use, useEffect, useRef, useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { sliceBookPdf } from "@/lib/pdf/slice"
 import { waitForCanvasRef } from "@/lib/pdf/waitForCanvasRef"
+import { BackLink } from "@/components/back-link"
 
 type PdfDocumentProxy = import("pdfjs-dist").PDFDocumentProxy
 type PdfLoadingTask = import("pdfjs-dist").PDFDocumentLoadingTask
@@ -41,6 +42,16 @@ export default function NewJobPage({ params }: Props) {
   const [lessonNo, setLessonNo] = useState("")
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // A synchronous guard in addition to the isSubmitting state: setIsSubmitting
+  // doesn't take effect (and doesn't disable the submit button) until the
+  // next render, so a double-click or an Enter-key submit that races the
+  // click handler can fire handleSubmit twice before React re-renders,
+  // creating two extraction_jobs rows for the same PDF range.
+  const isSubmittingRef = useRef(false)
+
+  const [zoomPage, setZoomPage] = useState<number | null>(null)
+  const zoomCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const [isZoomRendering, setIsZoomRendering] = useState(false)
 
   async function handleFileChange(file: File | null) {
     // Supersede any in-flight render loop from a previously selected file
@@ -118,6 +129,42 @@ export default function NewJobPage({ params }: Props) {
     }
   }
 
+  useEffect(() => {
+    if (zoomPage === null || !pdfBytes) return
+    let cancelled = false
+    let loadingTask: PdfLoadingTask | null = null
+
+    async function run() {
+      setIsZoomRendering(true)
+      try {
+        const pdfjsLib = await import("pdfjs-dist")
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"
+        loadingTask = pdfjsLib.getDocument({ data: pdfBytes!.slice(0) })
+        const doc = await loadingTask.promise
+        if (cancelled) return
+        const page = await doc.getPage(zoomPage!)
+        if (cancelled) return
+        const viewport = page.getViewport({ scale: 2 })
+        const canvas = zoomCanvasRef.current
+        if (!canvas) return
+        canvas.width = viewport.width
+        canvas.height = viewport.height
+        const context = canvas.getContext("2d")
+        if (!context) return
+        await page.render({ canvas, canvasContext: context, viewport }).promise
+      } finally {
+        if (!cancelled) setIsZoomRendering(false)
+      }
+    }
+
+    run()
+
+    return () => {
+      cancelled = true
+      loadingTask?.destroy()
+    }
+  }, [zoomPage, pdfBytes])
+
   function handlePageClick(page: number) {
     if (anchor === null || committed) {
       setAnchor(page)
@@ -143,6 +190,7 @@ export default function NewJobPage({ params }: Props) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (isSubmittingRef.current) return
     setSubmitError(null)
 
     if (!pdfBytes) {
@@ -159,6 +207,7 @@ export default function NewJobPage({ params }: Props) {
       return
     }
 
+    isSubmittingRef.current = true
     setIsSubmitting(true)
     try {
       const sliced = await sliceBookPdf(new Uint8Array(pdfBytes), finalStart, finalEnd)
@@ -186,6 +235,7 @@ export default function NewJobPage({ params }: Props) {
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Failed to create job.")
     } finally {
+      isSubmittingRef.current = false
       setIsSubmitting(false)
     }
   }
@@ -193,8 +243,11 @@ export default function NewJobPage({ params }: Props) {
   return (
     <main className="flex min-h-full flex-col">
       <div className="flex-1 overflow-y-auto px-4 pt-8 pb-40 sm:px-6">
+        <div className="w-full">
+          <BackLink href={`/books/${bookId}`} label="Quay lại sách" />
+        </div>
         <div className="mx-auto w-full max-w-5xl">
-          <h1 className="mb-1 text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="mt-3 mb-1 text-2xl font-semibold tracking-tight text-foreground">
             Chọn khoảng trang
           </h1>
           <p className="mb-6 text-sm text-muted-foreground">
@@ -241,13 +294,46 @@ export default function NewJobPage({ params }: Props) {
                   onMouseEnter={() => setHoverPage(page)}
                   onMouseLeave={() => setHoverPage(null)}
                   className={cn(
-                    "group flex flex-col items-center gap-1 rounded-md border-2 border-transparent p-1.5 text-xs transition-colors",
+                    "group relative flex flex-col items-center gap-1 rounded-md border-2 border-transparent p-1.5 text-xs transition-colors",
                     "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     inRange && "bg-primary/10",
                     isPreviewOnly && "border-dashed border-primary/50",
                     (isStart || isEnd) && "border-primary bg-primary/15 font-semibold"
                   )}
                 >
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Xem to trang ${page}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setZoomPage(page)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setZoomPage(page)
+                      }
+                    }}
+                    className="absolute top-1.5 right-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background/90 text-muted-foreground opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-3.5 w-3.5"
+                    >
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      <line x1="11" y1="8" x2="11" y2="14" />
+                      <line x1="8" y1="11" x2="14" y2="11" />
+                    </svg>
+                  </span>
                   <canvas
                     ref={(el) => {
                       canvasRefs.current[page - 1] = el
@@ -304,6 +390,40 @@ export default function NewJobPage({ params }: Props) {
           </Button>
         </div>
       </form>
+
+      {zoomPage !== null && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setZoomPage(null)}
+        >
+          <div
+            className="flex max-h-full max-w-full flex-col items-center gap-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex w-full items-center justify-between text-sm text-white">
+              <span>Trang {zoomPage}</span>
+              <button
+                type="button"
+                onClick={() => setZoomPage(null)}
+                className="rounded-md px-2 py-1 hover:bg-white/10"
+              >
+                Đóng ✕
+              </button>
+            </div>
+            <div className="flex max-h-[85vh] max-w-[90vw] items-center justify-center rounded-md bg-white shadow-lg">
+              {isZoomRendering && (
+                <p className="p-4 text-sm text-muted-foreground">Đang tải...</p>
+              )}
+              <canvas
+                ref={zoomCanvasRef}
+                className={cn("block max-h-[85vh] max-w-[90vw] w-auto h-auto", isZoomRendering && "hidden")}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

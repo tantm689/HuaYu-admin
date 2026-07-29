@@ -11,7 +11,7 @@ export async function waitForCanvasRef(
   refs: { current: Array<HTMLCanvasElement | null> },
   index: number,
   isCancelled: () => boolean,
-  maxAttempts = 3
+  maxAttempts = 30
 ): Promise<HTMLCanvasElement | null> {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const canvas = refs.current[index]

@@ -1,11 +1,9 @@
 import { createServerSupabase } from '@/lib/supabase/server'
-import { generateVocabAudio } from '@/lib/tts/edgeTts'
 import { ExtractionResultSchema } from '@/lib/gemini/schema'
 import { deleteLessonAndAudio } from '@/lib/db/deleteLesson'
 
-const VOCAB_TTS_TIMEOUT_MS = 15_000
-
 export class JobAlreadyImportedError extends Error {}
+export class JobNotReadyForImportError extends Error {}
 
 export async function importExtractionJob(jobId: string): Promise<{ lessonId: string }> {
   const supabase = createServerSupabase()
@@ -26,6 +24,16 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
     // the lesson editor. Once imported, further changes go through
     // /lessons/[lessonId]/edit instead.
     throw new JobAlreadyImportedError('Công việc này đã được nhập vào cơ sở dữ liệu rồi, không thể nhập lại.')
+  }
+
+  // Import is reachable once audio has been generated (status 'audio_ready'
+  // or later). Scope 4 ("Sinh & duyệt Quiz") doesn't exist yet, so
+  // 'audio_ready' is allowed through directly rather than gating on
+  // 'quiz_ready' - otherwise no lesson could ship until that page exists.
+  if (job.status !== 'audio_ready' && job.status !== 'quiz_ready') {
+    throw new JobNotReadyForImportError(
+      'Công việc cần hoàn tất bước "Sinh & duyệt Audio" trước khi import vào cơ sở dữ liệu.'
+    )
   }
 
   const result = ExtractionResultSchema.parse(job.raw_json)
@@ -71,8 +79,7 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
         .insert({
           lesson_id: lesson.id,
           order: dialogue.order,
-          title_zh: dialogue.titleZh,
-          title_vi: dialogue.titleVi,
+          kind: dialogue.kind,
           audio_code: dialogue.audioCode,
         })
         .select()
@@ -94,42 +101,61 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
         )
         if (linesError) throw new Error(linesError.message)
       }
+
+      if (dialogue.vocabulary.length > 0) {
+        const { error: vocabError } = await supabase.from('vocabulary').insert(
+          dialogue.vocabulary.map((vocab) => ({
+            dialogue_id: dlgRow.id,
+            order: vocab.order,
+            word_zh: vocab.wordZh,
+            pinyin: vocab.pinyin,
+            meaning_vi: vocab.meaningVi,
+          }))
+        )
+        if (vocabError) throw new Error(vocabError.message)
+      }
     }
 
-    for (const vocab of result.vocabulary) {
-      const { data: vocabRow, error: vocabError } = await supabase
-        .from('vocabulary')
-        .insert({
-          lesson_id: lesson.id,
-          order: vocab.order,
-          word_zh: vocab.wordZh,
-          pinyin: vocab.pinyin,
-          meaning_vi: vocab.meaningVi,
-        })
-        .select()
-        .single()
+    async function insertExamples(grammarSectionId: string, examples: { order: number; textZh: string; pinyin: string | null; translationVi: string | null }[]) {
+      if (examples.length === 0) return
+      const { error: exError } = await supabase.from('grammar_examples').insert(
+        examples.map((ex) => ({
+          grammar_section_id: grammarSectionId,
+          order: ex.order,
+          text_zh: ex.textZh,
+          pinyin: ex.pinyin,
+          translation_vi: ex.translationVi,
+        }))
+      )
+      if (exError) throw new Error(exError.message)
+    }
 
-      if (vocabError || !vocabRow) throw new Error(vocabError?.message ?? 'failed to insert vocabulary')
+    async function insertSections(
+      sections: (typeof result.grammarPoints)[number]['sections'],
+      owner: { grammar_point_id: string } | { grammar_sub_point_id: string } | { parent_section_id: string }
+    ) {
+      for (const section of sections) {
+        const { data: secRow, error: secError } = await supabase
+          .from('grammar_sections')
+          .insert({
+            ...owner,
+            order: section.order,
+            label: section.label,
+            content: section.content,
+          })
+          .select()
+          .single()
 
-      try {
-        const audioBytes = await withTimeout(
-          generateVocabAudio(vocab.wordZh),
-          VOCAB_TTS_TIMEOUT_MS,
-          'TTS timeout'
-        )
-        const path = `vocab/${vocabRow.id}.mp3`
-        const { error: uploadError } = await supabase.storage
-          .from('audio')
-          .upload(path, audioBytes, { contentType: 'audio/mpeg' })
-        if (uploadError) throw uploadError
+        if (secError || !secRow) throw new Error(secError?.message ?? 'failed to insert grammar section')
 
-        const { data: publicUrl } = supabase.storage.from('audio').getPublicUrl(path)
-        await supabase.from('vocabulary').update({ audio_url: publicUrl.publicUrl }).eq('id', vocabRow.id)
-      } catch {
-        // TTS/upload failure never blocks import; audio_url stays null for
-        // the admin to regenerate later. A hung TTS call is bounded by
-        // withTimeout so it fails within VOCAB_TTS_TIMEOUT_MS instead of
-        // hanging the whole import request forever.
+        await insertExamples(secRow.id, section.examples)
+
+        if (section.items.length > 0) {
+          await insertSections(
+            section.items.map((item) => ({ ...item, items: [] })),
+            { parent_section_id: secRow.id }
+          )
+        }
       }
     }
 
@@ -139,27 +165,14 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
         .insert({
           lesson_id: lesson.id,
           order: gp.order,
-          title_zh: gp.titleZh,
           title_vi: gp.titleVi,
-          structure_note: gp.structureNote,
         })
         .select()
         .single()
 
       if (gpError || !gpRow) throw new Error(gpError?.message ?? 'failed to insert grammar point')
 
-      if (gp.examples.length > 0) {
-        const { error: exError } = await supabase.from('grammar_examples').insert(
-          gp.examples.map((ex) => ({
-            grammar_point_id: gpRow.id,
-            order: ex.order,
-            text_zh: ex.textZh,
-            pinyin: ex.pinyin,
-            translation_vi: ex.translationVi,
-          }))
-        )
-        if (exError) throw new Error(exError.message)
-      }
+      await insertSections(gp.sections, { grammar_point_id: gpRow.id })
 
       for (const sp of gp.subPoints) {
         const { data: spRow, error: spError } = await supabase
@@ -168,27 +181,14 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
             grammar_point_id: gpRow.id,
             order: sp.order,
             label: sp.label,
-            title_zh: sp.titleZh,
             title_vi: sp.titleVi,
-            structure_note: sp.structureNote,
           })
           .select()
           .single()
 
         if (spError || !spRow) throw new Error(spError?.message ?? 'failed to insert grammar sub-point')
 
-        if (sp.examples.length > 0) {
-          const { error: spExError } = await supabase.from('grammar_examples').insert(
-            sp.examples.map((ex) => ({
-              grammar_sub_point_id: spRow.id,
-              order: ex.order,
-              text_zh: ex.textZh,
-              pinyin: ex.pinyin,
-              translation_vi: ex.translationVi,
-            }))
-          )
-          if (spExError) throw new Error(spExError.message)
-        }
+        await insertSections(sp.sections, { grammar_sub_point_id: spRow.id })
       }
     }
   } catch (err) {
@@ -213,11 +213,4 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
   }
 
   return { lessonId: lesson.id }
-}
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), timeoutMs)),
-  ])
 }

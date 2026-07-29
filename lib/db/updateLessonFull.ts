@@ -1,17 +1,7 @@
 import { createServerSupabase } from '@/lib/supabase/server'
-import { generateVocabAudio } from '@/lib/tts/edgeTts'
 import { LessonFullUpdateSchema, type LessonFullUpdate } from '@/lib/db/lessonFull'
 
-const VOCAB_TTS_TIMEOUT_MS = 15_000
-
 export class LessonNotEditableError extends Error {}
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), timeoutMs)),
-  ])
-}
 
 // Applies admin edits made after import directly onto the live tables.
 // Existing rows (id present) are UPDATEd in place so columns the editor
@@ -40,7 +30,6 @@ export async function updateLessonFull(lessonId: string, rawPayload: unknown): P
   if (lessonError) throw new Error(lessonError.message)
 
   await syncDialogues(supabase, lessonId, payload.dialogues)
-  await syncVocabulary(supabase, lessonId, payload.vocabulary)
   await syncGrammarPoints(supabase, lessonId, payload.grammarPoints)
 }
 
@@ -64,8 +53,7 @@ async function syncDialogues(supabase: Supabase, lessonId: string, dialogues: Le
         .from('dialogues')
         .update({
           order: dialogue.order,
-          title_zh: dialogue.titleZh,
-          title_vi: dialogue.titleVi,
+          kind: dialogue.kind,
           audio_code: dialogue.audioCode,
         })
         .eq('id', dialogueId)
@@ -76,8 +64,7 @@ async function syncDialogues(supabase: Supabase, lessonId: string, dialogues: Le
         .insert({
           lesson_id: lessonId,
           order: dialogue.order,
-          title_zh: dialogue.titleZh,
-          title_vi: dialogue.titleVi,
+          kind: dialogue.kind,
           audio_code: dialogue.audioCode,
         })
         .select()
@@ -87,6 +74,7 @@ async function syncDialogues(supabase: Supabase, lessonId: string, dialogues: Le
     }
 
     await syncDialogueLines(supabase, dialogueId!, dialogue.lines)
+    await syncVocabulary(supabase, dialogueId!, dialogue.vocabulary)
   }
 }
 
@@ -124,8 +112,12 @@ async function syncDialogueLines(
   }
 }
 
-async function syncVocabulary(supabase: Supabase, lessonId: string, vocabulary: LessonFullUpdate['vocabulary']) {
-  const { data: existingRows } = await supabase.from('vocabulary').select('id').eq('lesson_id', lessonId)
+async function syncVocabulary(
+  supabase: Supabase,
+  dialogueId: string,
+  vocabulary: LessonFullUpdate['dialogues'][number]['vocabulary']
+) {
+  const { data: existingRows } = await supabase.from('vocabulary').select('id').eq('dialogue_id', dialogueId)
   const existingIds = new Set((existingRows ?? []).map((r: { id: string }) => r.id))
   const keptIds = new Set(vocabulary.filter((v) => v.id).map((v) => v.id as string))
 
@@ -145,36 +137,14 @@ async function syncVocabulary(supabase: Supabase, lessonId: string, vocabulary: 
       continue
     }
 
-    const { data: vocabRow, error } = await supabase
-      .from('vocabulary')
-      .insert({
-        lesson_id: lessonId,
-        order: vocab.order,
-        word_zh: vocab.wordZh,
-        pinyin: vocab.pinyin,
-        meaning_vi: vocab.meaningVi,
-      })
-      .select()
-      .single()
-    if (error || !vocabRow) throw new Error(error?.message ?? 'failed to insert vocabulary')
-
-    try {
-      const audioBytes = await withTimeout(
-        generateVocabAudio(vocab.wordZh),
-        VOCAB_TTS_TIMEOUT_MS,
-        'TTS timeout'
-      )
-      const path = `vocab/${vocabRow.id}.mp3`
-      const { error: uploadError } = await supabase.storage
-        .from('audio')
-        .upload(path, audioBytes, { contentType: 'audio/mpeg' })
-      if (uploadError) throw uploadError
-      const { data: publicUrl } = supabase.storage.from('audio').getPublicUrl(path)
-      await supabase.from('vocabulary').update({ audio_url: publicUrl.publicUrl }).eq('id', vocabRow.id)
-    } catch {
-      // Same as import: a newly added word without audio just stays
-      // silent until regenerated, it never blocks saving the edit.
-    }
+    const { error } = await supabase.from('vocabulary').insert({
+      dialogue_id: dialogueId,
+      order: vocab.order,
+      word_zh: vocab.wordZh,
+      pinyin: vocab.pinyin,
+      meaning_vi: vocab.meaningVi,
+    })
+    if (error) throw new Error(error.message)
   }
 }
 
@@ -197,7 +167,7 @@ async function syncGrammarPoints(
     if (gpId) {
       const { error } = await supabase
         .from('grammar_points')
-        .update({ order: gp.order, title_zh: gp.titleZh, title_vi: gp.titleVi, structure_note: gp.structureNote })
+        .update({ order: gp.order, title_vi: gp.titleVi })
         .eq('id', gpId)
       if (error) throw new Error(error.message)
     } else {
@@ -206,9 +176,7 @@ async function syncGrammarPoints(
         .insert({
           lesson_id: lessonId,
           order: gp.order,
-          title_zh: gp.titleZh,
           title_vi: gp.titleVi,
-          structure_note: gp.structureNote,
         })
         .select()
         .single()
@@ -216,7 +184,7 @@ async function syncGrammarPoints(
       gpId = data.id
     }
 
-    await syncGrammarExamples(supabase, 'grammar_point_id', gpId!, gp.examples)
+    await syncGrammarSections(supabase, 'grammar_point_id', gpId!, gp.sections)
     await syncGrammarSubPoints(supabase, gpId!, gp.subPoints)
   }
 }
@@ -246,9 +214,7 @@ async function syncGrammarSubPoints(
         .update({
           order: sp.order,
           label: sp.label,
-          title_zh: sp.titleZh,
           title_vi: sp.titleVi,
-          structure_note: sp.structureNote,
         })
         .eq('id', spId)
       if (error) throw new Error(error.message)
@@ -259,9 +225,7 @@ async function syncGrammarSubPoints(
           grammar_point_id: grammarPointId,
           order: sp.order,
           label: sp.label,
-          title_zh: sp.titleZh,
           title_vi: sp.titleVi,
-          structure_note: sp.structureNote,
         })
         .select()
         .single()
@@ -269,17 +233,77 @@ async function syncGrammarSubPoints(
       spId = data.id
     }
 
-    await syncGrammarExamples(supabase, 'grammar_sub_point_id', spId!, sp.examples)
+    await syncGrammarSections(supabase, 'grammar_sub_point_id', spId!, sp.sections)
+  }
+}
+
+async function syncGrammarSections(
+  supabase: Supabase,
+  parentColumn: 'grammar_point_id' | 'grammar_sub_point_id' | 'parent_section_id',
+  parentId: string,
+  sections: LessonFullUpdate['grammarPoints'][number]['sections']
+) {
+  const { data: existingRows } = await supabase.from('grammar_sections').select('id').eq(parentColumn, parentId)
+  const existingIds = new Set((existingRows ?? []).map((r: { id: string }) => r.id))
+  const keptIds = new Set(sections.filter((s) => s.id).map((s) => s.id as string))
+
+  const toDelete = [...existingIds].filter((id) => !keptIds.has(id))
+  if (toDelete.length > 0) {
+    await supabase.from('grammar_sections').delete().in('id', toDelete)
+  }
+
+  for (const section of sections) {
+    let sectionId = section.id
+    if (sectionId) {
+      const { error } = await supabase
+        .from('grammar_sections')
+        .update({ order: section.order, label: section.label, content: section.content })
+        .eq('id', sectionId)
+      if (error) throw new Error(error.message)
+    } else {
+      const { data, error } = await supabase
+        .from('grammar_sections')
+        .insert({
+          [parentColumn]: parentId,
+          order: section.order,
+          label: section.label,
+          content: section.content,
+        })
+        .select()
+        .single()
+      if (error || !data) throw new Error(error?.message ?? 'failed to insert grammar section')
+      sectionId = data.id
+    }
+
+    await syncGrammarExamples(supabase, sectionId!, section.examples)
+
+    const items = 'items' in section ? section.items : []
+    if (items.length > 0) {
+      await syncGrammarSections(
+        supabase,
+        'parent_section_id',
+        sectionId!,
+        items.map((item) => ({ ...item, items: [] }))
+      )
+    } else {
+      // An existing section that just had its last item removed in the
+      // editor still has stale child rows in the DB (the top-level
+      // existingIds/toDelete diff above only covers this section's own
+      // level, not its items) - clear them explicitly.
+      await supabase.from('grammar_sections').delete().eq('parent_section_id', sectionId!)
+    }
   }
 }
 
 async function syncGrammarExamples(
   supabase: Supabase,
-  parentColumn: 'grammar_point_id' | 'grammar_sub_point_id',
-  parentId: string,
-  examples: LessonFullUpdate['grammarPoints'][number]['examples']
+  grammarSectionId: string,
+  examples: LessonFullUpdate['grammarPoints'][number]['sections'][number]['examples']
 ) {
-  const { data: existingRows } = await supabase.from('grammar_examples').select('id').eq(parentColumn, parentId)
+  const { data: existingRows } = await supabase
+    .from('grammar_examples')
+    .select('id')
+    .eq('grammar_section_id', grammarSectionId)
   const existingIds = new Set((existingRows ?? []).map((r: { id: string }) => r.id))
   const keptIds = new Set(examples.filter((e) => e.id).map((e) => e.id as string))
 
@@ -290,7 +314,7 @@ async function syncGrammarExamples(
 
   for (const example of examples) {
     const row = {
-      [parentColumn]: parentId,
+      grammar_section_id: grammarSectionId,
       order: example.order,
       text_zh: example.textZh,
       pinyin: example.pinyin,

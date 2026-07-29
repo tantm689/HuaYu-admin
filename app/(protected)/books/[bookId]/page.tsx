@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { createServerSupabase } from "@/lib/supabase/server"
 import { Button } from "@/components/ui/button"
 import { BookTabs } from "./book-tabs"
+import { BackLink } from "@/components/back-link"
 import type { Book, ExtractionJob, Lesson } from "@/lib/db/types"
 
 interface Props {
@@ -41,8 +42,12 @@ export default async function BookDetailPage({ params }: Props) {
   const jobRows = (jobs ?? []) as ExtractionJob[]
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+    <>
+      <div className="w-full px-4 pt-6 sm:px-6">
+        <BackLink href="/books" label="Danh sách sách" />
+      </div>
+      <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
+      <div className="mt-4 mb-8 flex flex-wrap items-start justify-between gap-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">{bookRow.title}</h1>
           {bookRow.volume && (
@@ -56,6 +61,7 @@ export default async function BookDetailPage({ params }: Props) {
       </div>
 
       <BookTabs bookId={bookId} lessons={lessonRows} jobs={jobRows} />
-    </main>
+      </main>
+    </>
   )
 }

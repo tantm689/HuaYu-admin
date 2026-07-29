@@ -59,99 +59,97 @@
 }
 
 :root {
-  /* TaiwaneseEasy Admin design system — professional blue, chosen via
-     ui-ux-pro-max (CRM & Client Management palette + Minimal Swiss / Inter
-     typography), tuned for long reading/editing sessions on a light,
-     content-dense admin surface. */
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  /* TaiwaneseEasy Admin design system — warm beige + soft navy, tuned for
+     long reading/editing sessions on a content-dense admin surface. */
+  --background: #f7f3ed;
+  --foreground: #1c2333;
   --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card-foreground: #1c2333;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #2563eb;
+  --popover-foreground: #1c2333;
+  --primary: #33456b;
   --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #eff6ff;
-  --accent-foreground: #1d4ed8;
-  --destructive: #dc2626;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #2563eb;
-  --chart-1: #2563eb;
-  --chart-2: #0ea5e9;
-  --chart-3: #059669;
-  --chart-4: #d97706;
-  --chart-5: #64748b;
+  --secondary: #efe8db;
+  --secondary-foreground: #1c2333;
+  --muted: #efe8db;
+  --muted-foreground: #6b6456;
+  --accent: #eef1f6;
+  --accent-foreground: #33456b;
+  --destructive: #b3402f;
+  --border: #e5dfd3;
+  --input: #e5dfd3;
+  --ring: #33456b;
+  --chart-1: #33456b;
+  --chart-2: #6d88a8;
+  --chart-3: #6b8f6a;
+  --chart-4: #b8863f;
+  --chart-5: #6b6456;
   --radius: 0.625rem;
   --sidebar: #ffffff;
-  --sidebar-foreground: #0f172a;
-  --sidebar-primary: #2563eb;
+  --sidebar-foreground: #1c2333;
+  --sidebar-primary: #33456b;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f1f5f9;
-  --sidebar-accent-foreground: #0f172a;
-  --sidebar-border: #e2e8f0;
-  --sidebar-ring: #2563eb;
+  --sidebar-accent: #efe8db;
+  --sidebar-accent-foreground: #1c2333;
+  --sidebar-border: #e5dfd3;
+  --sidebar-ring: #33456b;
 
   /* Status semantics shared by job-status and publish-status badges. */
-  --status-pending: #64748b;
-  --status-pending-bg: #f1f5f9;
-  --status-info: #2563eb;
-  --status-info-bg: #eff6ff;
-  --status-success: #059669;
-  --status-success-bg: #ecfdf5;
-  --status-warning: #d97706;
-  --status-warning-bg: #fffbeb;
-  --status-danger: #dc2626;
-  --status-danger-bg: #fef2f2;
+  --status-pending: #6b6456;
+  --status-pending-bg: #efe8db;
+  --status-info: #33456b;
+  --status-info-bg: #eef1f6;
+  --status-success: #4a7048;
+  --status-success-bg: #eaf1e8;
+  --status-warning: #b8863f;
+  --status-warning-bg: #faf1e2;
+  --status-danger: #b3402f;
+  --status-danger-bg: #fbeae7;
 }
 
 .dark {
-  --background: #0b1220;
-  --foreground: #f1f5f9;
-  --card: #111a2c;
-  --card-foreground: #f1f5f9;
-  --popover: #111a2c;
-  --popover-foreground: #f1f5f9;
-  --primary: #3b82f6;
-  --primary-foreground: #0b1220;
-  --secondary: #1e293b;
-  --secondary-foreground: #f1f5f9;
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
-  --accent: #17233a;
-  --accent-foreground: #93c5fd;
-  --destructive: #f87171;
-  --border: #1e293b;
-  --input: #1e293b;
-  --ring: #3b82f6;
-  --chart-1: #3b82f6;
-  --chart-2: #38bdf8;
-  --chart-3: #34d399;
-  --chart-4: #fbbf24;
-  --chart-5: #94a3b8;
-  --sidebar: #111a2c;
-  --sidebar-foreground: #f1f5f9;
-  --sidebar-primary: #3b82f6;
-  --sidebar-primary-foreground: #0b1220;
-  --sidebar-accent: #1e293b;
-  --sidebar-accent-foreground: #f1f5f9;
-  --sidebar-border: #1e293b;
-  --sidebar-ring: #3b82f6;
+  --background: #14192a;
+  --foreground: #efe8db;
+  --card: #1b2438;
+  --card-foreground: #efe8db;
+  --popover: #1b2438;
+  --popover-foreground: #efe8db;
+  --primary: #7e97bc;
+  --primary-foreground: #14192a;
+  --secondary: #232d47;
+  --secondary-foreground: #efe8db;
+  --muted: #232d47;
+  --muted-foreground: #a6a091;
+  --accent: #232d47;
+  --accent-foreground: #b9c8de;
+  --destructive: #e08b7a;
+  --border: #2a3552;
+  --input: #2a3552;
+  --ring: #7e97bc;
+  --chart-1: #7e97bc;
+  --chart-2: #a6bcd8;
+  --chart-3: #9bbd98;
+  --chart-4: #d9ac6c;
+  --chart-5: #a6a091;
+  --sidebar: #1b2438;
+  --sidebar-foreground: #efe8db;
+  --sidebar-primary: #7e97bc;
+  --sidebar-primary-foreground: #14192a;
+  --sidebar-accent: #232d47;
+  --sidebar-accent-foreground: #efe8db;
+  --sidebar-border: #2a3552;
+  --sidebar-ring: #7e97bc;
 
-  --status-pending: #94a3b8;
-  --status-pending-bg: #1e293b;
-  --status-info: #60a5fa;
-  --status-info-bg: #17233a;
-  --status-success: #34d399;
-  --status-success-bg: #103a2c;
-  --status-warning: #fbbf24;
-  --status-warning-bg: #3a2c10;
-  --status-danger: #f87171;
-  --status-danger-bg: #3a1414;
+  --status-pending: #a6a091;
+  --status-pending-bg: #232d47;
+  --status-info: #a6bcd8;
+  --status-info-bg: #232d47;
+  --status-success: #9bbd98;
+  --status-success-bg: #1e2e1c;
+  --status-warning: #d9ac6c;
+  --status-warning-bg: #332918;
+  --status-danger: #e08b7a;
+  --status-danger-bg: #331d18;
 }
 
 @layer base {
@@ -163,5 +161,23 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+@layer components {
+  /* Chinese-text input/textarea fields (textZh, wordZh, titleZh...) — larger
+     and bolder than regular form fields so admins can read/proofread Hanzi
+     without straining, across every editor screen. */
+  .field-zh {
+    @apply text-xl leading-snug font-semibold text-foreground;
+  }
+}
+
+@keyframes extraction-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
   }
 }

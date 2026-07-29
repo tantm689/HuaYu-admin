@@ -15,21 +15,21 @@ const LineInput = z.object({
   translationVi: nullableString,
 })
 
-const DialogueInput = z.object({
-  id: rowId,
-  order: z.number(),
-  titleZh: nullableString,
-  titleVi: nullableString,
-  audioCode: nullableString,
-  lines: z.array(LineInput),
-})
-
 const VocabInput = z.object({
   id: rowId,
   order: z.number(),
   wordZh: z.string(),
   pinyin: nullableString,
   meaningVi: nullableString,
+})
+
+const DialogueInput = z.object({
+  id: rowId,
+  order: z.number(),
+  kind: z.enum(['dialogue', 'passage']).default('dialogue'),
+  audioCode: nullableString,
+  lines: z.array(LineInput),
+  vocabulary: z.array(VocabInput).default([]),
 })
 
 const ExampleInput = z.object({
@@ -40,23 +40,36 @@ const ExampleInput = z.object({
   translationVi: nullableString,
 })
 
+const SectionItemInput = z.object({
+  id: rowId,
+  order: z.number(),
+  label: z.string(),
+  content: nullableString,
+  examples: z.array(ExampleInput),
+})
+
+const SectionInput = z.object({
+  id: rowId,
+  order: z.number(),
+  label: z.string(),
+  content: nullableString,
+  examples: z.array(ExampleInput),
+  items: z.array(SectionItemInput).default([]),
+})
+
 const GrammarSubPointInput = z.object({
   id: rowId,
   order: z.number(),
   label: z.string(),
-  titleZh: nullableString,
   titleVi: nullableString,
-  structureNote: nullableString,
-  examples: z.array(ExampleInput),
+  sections: z.array(SectionInput),
 })
 
 const GrammarPointInput = z.object({
   id: rowId,
   order: z.number(),
-  titleZh: z.string(),
   titleVi: nullableString,
-  structureNote: nullableString,
-  examples: z.array(ExampleInput),
+  sections: z.array(SectionInput),
   subPoints: z.array(GrammarSubPointInput).default([]),
 })
 
@@ -66,7 +79,6 @@ export const LessonFullUpdateSchema = z.object({
   theme: nullableString,
   objectives: z.array(z.string()).default([]),
   dialogues: z.array(DialogueInput),
-  vocabulary: z.array(VocabInput),
   grammarPoints: z.array(GrammarPointInput),
 })
 

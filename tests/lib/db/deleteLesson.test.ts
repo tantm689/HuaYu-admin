@@ -12,7 +12,7 @@ vi.mock('@/lib/supabase/server', () => ({
         return { select: () => ({ eq: () => Promise.resolve({ data: [{ id: 'dlg-1' }, { id: 'dlg-2' }] }) }) }
       }
       if (table === 'vocabulary') {
-        return { select: () => ({ eq: () => Promise.resolve({ data: [{ id: 'vocab-1' }] }) }) }
+        return { select: () => ({ in: () => Promise.resolve({ data: [{ id: 'vocab-1' }] }) }) }
       }
       if (table === 'lessons') {
         return {
