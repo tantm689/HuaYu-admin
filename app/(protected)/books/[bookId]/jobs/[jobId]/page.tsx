@@ -1237,6 +1237,11 @@ export default function JobReviewPage({ params }: Props) {
             </Button>
           )}
           {(job.status === "audio_ready" || job.status === "quiz_ready") && (
+            <Button variant="outline" onClick={() => router.push(`/books/${bookId}/jobs/${jobId}/quiz`)}>
+              Sinh &amp; duyệt Quiz
+            </Button>
+          )}
+          {(job.status === "audio_ready" || job.status === "quiz_ready") && (
             <Button variant="outline" onClick={handleImport} disabled={isImporting}>
               {isImporting ? "Đang nhập..." : "Import vào DB"}
             </Button>
