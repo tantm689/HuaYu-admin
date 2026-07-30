@@ -55,9 +55,11 @@ export async function PATCH(
     )
   }
 
-  // 'imported' is excluded above, and 'failed' jobs haven't produced
-  // reviewable raw_json, so any save reaching here moves the job to 'reviewed'.
-  const nextStatus = 'reviewed'
+  // 'imported' is excluded above, so only 'pending'/'reviewed'/'failed' reach
+  // here. A 'failed' job's raw_json is stale (the retry that failed left it
+  // untouched) - saving it shouldn't make the job look reviewed/importable,
+  // so 'failed' stays 'failed'. Anything else advances to 'reviewed'.
+  const nextStatus = job.status === 'failed' ? 'failed' : 'reviewed'
 
   const { error } = await supabase
     .from('extraction_jobs')
