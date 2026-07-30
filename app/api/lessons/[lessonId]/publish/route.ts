@@ -4,8 +4,7 @@ import { requireAdmin } from '@/lib/supabase/requireAdmin'
 import type { LessonStatus } from '@/lib/db/types'
 
 const ALLOWED_TRANSITIONS: Record<LessonStatus, LessonStatus[]> = {
-  draft: ['reviewed'],
-  reviewed: ['published', 'draft'],
+  draft: ['published'],
   published: ['draft'],
 }
 

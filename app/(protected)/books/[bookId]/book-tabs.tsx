@@ -15,13 +15,11 @@ type BadgeVariant = VariantProps<typeof badgeVariants>["variant"]
 
 const lessonStatusLabel: Record<Lesson["status"], string> = {
   draft: "Nháp",
-  reviewed: "Đã duyệt",
   published: "Đã xuất bản",
 }
 
 const lessonStatusVariant: Record<Lesson["status"], BadgeVariant> = {
   draft: "pending",
-  reviewed: "info",
   published: "success",
 }
 

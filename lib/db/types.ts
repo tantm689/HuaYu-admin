@@ -1,4 +1,4 @@
-export type LessonStatus = 'draft' | 'reviewed' | 'published'
+export type LessonStatus = 'draft' | 'published'
 export type JobStatus = 'pending' | 'reviewed' | 'imported' | 'failed'
 
 export interface Book {

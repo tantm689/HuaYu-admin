@@ -51,13 +51,6 @@ describe('DELETE /api/lessons/[lessonId]', () => {
     expect(lessonDeleteMock).toHaveBeenCalledWith('lesson-1')
   })
 
-  it('deletes a reviewed lesson', async () => {
-    lessonStatus = 'reviewed'
-    const res = await DELETE(new Request('http://localhost') as any, { params: Promise.resolve({ lessonId: 'lesson-1' }) })
-    expect(res.status).toBe(200)
-    expect(lessonDeleteMock).toHaveBeenCalledWith('lesson-1')
-  })
-
   it('rejects deleting a published lesson', async () => {
     lessonStatus = 'published'
     const res = await DELETE(new Request('http://localhost') as any, { params: Promise.resolve({ lessonId: 'lesson-1' }) })

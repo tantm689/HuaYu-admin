@@ -21,13 +21,11 @@ type BadgeVariant = VariantProps<typeof badgeVariants>["variant"]
 
 const statusLabel: Record<LessonStatus, string> = {
   draft: "Nháp",
-  reviewed: "Đã duyệt",
   published: "Đã xuất bản",
 }
 
 const statusVariant: Record<LessonStatus, BadgeVariant> = {
   draft: "pending",
-  reviewed: "info",
   published: "success",
 }
 
@@ -64,25 +62,9 @@ export function LessonStatusControls({ lessonId, status, onStatusChange }: Props
       <Badge variant={statusVariant[status]}>{statusLabel[status]}</Badge>
 
       {status === "draft" && (
-        <Button size="sm" onClick={() => transition("reviewed")} disabled={isUpdating}>
-          {isUpdating ? "Đang cập nhật..." : "Đánh dấu đã duyệt"}
+        <Button size="sm" onClick={() => transition("published")} disabled={isUpdating}>
+          {isUpdating ? "Đang cập nhật..." : "Xuất bản"}
         </Button>
-      )}
-
-      {status === "reviewed" && (
-        <>
-          <Button size="sm" onClick={() => transition("published")} disabled={isUpdating}>
-            {isUpdating ? "Đang cập nhật..." : "Xuất bản"}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => transition("draft")}
-            disabled={isUpdating}
-          >
-            Chuyển về nháp
-          </Button>
-        </>
       )}
 
       {status === "published" && (
