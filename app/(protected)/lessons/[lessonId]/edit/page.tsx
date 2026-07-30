@@ -1,7 +1,6 @@
 "use client"
 
 import { use, useCallback, useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import { Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -16,6 +15,7 @@ import { moveItem } from "@/lib/moveItem"
 import { canMoveWithinPart, moveQuestionWithinPart } from "@/lib/quizReorder"
 import { EditableText } from "@/components/editable-text"
 import { LessonStatusControls } from "@/app/(protected)/lessons/[lessonId]/status-controls"
+import { BackLink } from "@/components/back-link"
 import { BlockActions } from "@/components/block-actions"
 import { SectionBlock } from "@/components/grammar-editor"
 import { DialogueLineBlock } from "@/components/dialogue-line-block"
@@ -414,7 +414,6 @@ function QuizQuestionCard({
 
 export default function LessonEditPage({ params }: Props) {
   const { lessonId } = use(params)
-  const router = useRouter()
 
   const [data, setData] = useState<LessonFullView | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -422,7 +421,6 @@ export default function LessonEditPage({ params }: Props) {
 
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [saveSuccess, setSaveSuccess] = useState(false)
 
   const [audioVoice, setAudioVoice] = useState<TtsVoice>(VOICE_OPTIONS[0].value)
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false)
@@ -483,27 +481,41 @@ export default function LessonEditPage({ params }: Props) {
     loadQuiz()
   }, [loadQuiz])
 
-  async function handleSave() {
+  // Builds the PATCH payload from current form state and sends it - shared
+  // by the plain "Lưu" flow and the "Xuất bản" flow (which saves content
+  // and flips status to published in one click, so a draft never needs a
+  // separate save step first). Throws on failure; callers decide how to
+  // present that (setSaveError vs a status-specific error state).
+  async function saveLessonContent() {
     if (!data) return
-    setIsSaving(true)
-    setSaveError(null)
-    setSaveSuccess(false)
-    try {
-      const payload = {
-        titleZh: data.titleZh,
-        titleVi: data.titleVi,
-        theme: data.theme,
-        objectives: data.objectives,
-        dialogues: data.dialogues.map((d) => ({
-          ...d,
-          id: toApiId(d.id),
-          lines: d.lines.map((l) => ({ ...l, id: toApiId(l.id) })),
-          vocabulary: d.vocabulary.map((v) => ({ ...v, id: toApiId(v.id) })),
+    const payload = {
+      titleZh: data.titleZh,
+      titleVi: data.titleVi,
+      theme: data.theme,
+      objectives: data.objectives,
+      dialogues: data.dialogues.map((d) => ({
+        ...d,
+        id: toApiId(d.id),
+        lines: d.lines.map((l) => ({ ...l, id: toApiId(l.id) })),
+        vocabulary: d.vocabulary.map((v) => ({ ...v, id: toApiId(v.id) })),
+      })),
+      grammarPoints: data.grammarPoints.map((g) => ({
+        ...g,
+        id: toApiId(g.id),
+        sections: g.sections.map((s) => ({
+          ...s,
+          id: toApiId(s.id),
+          examples: s.examples.map((e) => ({ ...e, id: toApiId(e.id) })),
+          items: s.items.map((it) => ({
+            ...it,
+            id: toApiId(it.id),
+            examples: it.examples.map((e) => ({ ...e, id: toApiId(e.id) })),
+          })),
         })),
-        grammarPoints: data.grammarPoints.map((g) => ({
-          ...g,
-          id: toApiId(g.id),
-          sections: g.sections.map((s) => ({
+        subPoints: g.subPoints.map((sp) => ({
+          ...sp,
+          id: toApiId(sp.id),
+          sections: sp.sections.map((s) => ({
             ...s,
             id: toApiId(s.id),
             examples: s.examples.map((e) => ({ ...e, id: toApiId(e.id) })),
@@ -513,35 +525,41 @@ export default function LessonEditPage({ params }: Props) {
               examples: it.examples.map((e) => ({ ...e, id: toApiId(e.id) })),
             })),
           })),
-          subPoints: g.subPoints.map((sp) => ({
-            ...sp,
-            id: toApiId(sp.id),
-            sections: sp.sections.map((s) => ({
-              ...s,
-              id: toApiId(s.id),
-              examples: s.examples.map((e) => ({ ...e, id: toApiId(e.id) })),
-              items: s.items.map((it) => ({
-                ...it,
-                id: toApiId(it.id),
-                examples: it.examples.map((e) => ({ ...e, id: toApiId(e.id) })),
-              })),
-            })),
-          })),
         })),
-      }
-      const res = await fetch(`/api/lessons/${lessonId}`, {
+      })),
+    }
+    const res = await fetch(`/api/lessons/${lessonId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error ?? "Lưu thất bại.")
+    }
+  }
+
+  // "Xuất bản" on a draft does both steps in one click: save whatever's
+  // currently in the form, then flip status to published - skipping the
+  // old two-click "Lưu" then "Xuất bản" flow.
+  async function handleSaveAndPublish() {
+    if (!data) return
+    setIsSaving(true)
+    setSaveError(null)
+    try {
+      await saveLessonContent()
+      const res = await fetch(`/api/lessons/${lessonId}/publish`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ status: "published" }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        throw new Error(body.error ?? "Lưu thất bại.")
+        throw new Error(body.error ?? "Xuất bản thất bại.")
       }
-      setSaveSuccess(true)
       await load()
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Lưu thất bại.")
+      setSaveError(err instanceof Error ? err.message : "Xuất bản thất bại.")
     } finally {
       setIsSaving(false)
     }
@@ -1584,21 +1602,21 @@ export default function LessonEditPage({ params }: Props) {
   const dialogueLabels = dialogueDisplayNames(data.dialogues)
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 pb-16">
+    <>
+      <div className="w-full px-4 pt-6 sm:px-6">
+        <BackLink href={`/books/${data.bookId}`} label="Quay lại sách" />
+      </div>
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 pb-16">
       <div className="sticky top-0 z-10 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80">
         <h1 className="text-lg font-semibold tracking-tight text-foreground">
           Bài {data.lessonNo}: {data.titleVi || data.titleZh}
         </h1>
         <div className="flex flex-wrap items-center gap-2">
           {saveError && <p className="text-sm text-destructive">{saveError}</p>}
-          {saveSuccess && <p className="text-sm text-status-success">Đã lưu.</p>}
           <LessonStatusControls lessonId={data.id} status={data.status} onStatusChange={load} />
-          <Button variant="outline" nativeButton={false} onClick={() => router.push(`/books/${data.bookId}`)}>
-            Quay lại
-          </Button>
           {isEditable && (
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? "Đang lưu..." : "Lưu"}
+            <Button onClick={handleSaveAndPublish} disabled={isSaving}>
+              {isSaving ? "Đang xử lý..." : "Xuất bản"}
             </Button>
           )}
         </div>
@@ -2197,5 +2215,6 @@ export default function LessonEditPage({ params }: Props) {
         </TabsPanel>
       </Tabs>
     </main>
+    </>
   )
 }

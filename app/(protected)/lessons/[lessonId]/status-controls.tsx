@@ -61,12 +61,8 @@ export function LessonStatusControls({ lessonId, status, onStatusChange }: Props
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Badge variant={statusVariant[status]}>{statusLabel[status]}</Badge>
 
-      {status === "draft" && (
-        <Button size="sm" onClick={() => transition("published")} disabled={isUpdating}>
-          {isUpdating ? "Đang cập nhật..." : "Xuất bản"}
-        </Button>
-      )}
-
+      {/* draft -> published is handled by the edit page's combined "Xuất bản"
+          button (saves content + publishes in one click), not here. */}
       {status === "published" && (
         <Button size="sm" variant="outline" onClick={() => transition("draft")} disabled={isUpdating}>
           {isUpdating ? "Đang cập nhật..." : "Chuyển về nháp"}
