@@ -10,21 +10,16 @@ import {
 } from './quizSchema'
 
 // Separate from gemini-3.6-flash (used by lib/gemini/extract.ts for PDF
-// extraction, and NOT used as a quiz fallback) so quiz generation draws from
-// its own daily request quota - extraction and quiz generation sharing a
-// model would burn through its 20 RPD free-tier quota faster.
+// extraction) so quiz generation draws from its own daily request quota.
 //
-// If the primary quiz model errors (quota exhausted, rate limit, transient
-// failure), quiz generation automatically retries once against the fallback
-// model rather than failing outright - quiz questions are template-shaped
-// content (fixed JSON structure, simple per-type constraints) generated from
-// already-reviewed data, so a weaker model is an acceptable degradation here.
-// This is deliberately NOT applied to PDF extraction (extract.ts), which
-// requires precise character-by-character transcription and complex,
-// inconsistent-across-books structural judgment - a silent quality drop
-// there would be far harder for the admin to catch than in quiz answers.
-const QUIZ_MODEL_PRIMARY = 'gemini-3.5-flash'
-const QUIZ_MODEL_FALLBACK = 'gemini-3-flash'
+// No fallback model: a weaker model was tried here previously, but it
+// followed the response schema's `required` list literally (only
+// part/type/order are required - the type-specific fields like choices/
+// correctIndex are merely `nullable` to let the schema cover all 6 question
+// shapes in one object) and sometimes omitted fields a given question type
+// actually needs, failing Zod validation instead of degrading gracefully.
+// Simpler to surface the primary model's errors directly than risk that.
+const QUIZ_MODEL = 'gemini-3.5-flash'
 
 function lessonDataText(result: ExtractionResult): string {
   return JSON.stringify({
@@ -58,10 +53,13 @@ QUAN TRỌNG: mỗi câu hỏi PHẢI có "part" (luôn là 2), "type", "order" 
 
 Trả về đúng theo JSON schema đã cung cấp, không thêm giải thích ngoài JSON.`
 
+// `usedFallbackModel` is always false now (no fallback model exists), kept
+// on the result shape so callers (the DB layer, the API route, the edit
+// page's fallback-warning banner) don't need to change - they simply never
+// see it turn true anymore.
 export type QuizGenerationResult<T> = { questions: T[]; usedFallbackModel: boolean }
 
-async function callGeminiOnce(
-  model: string,
+async function callGemini(
   prompt: string,
   dataText: string,
   responseSchema: object
@@ -69,7 +67,7 @@ async function callGeminiOnce(
   const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
 
   const response = await client.models.generateContent({
-    model,
+    model: QUIZ_MODEL,
     contents: [
       {
         role: 'user',
@@ -100,42 +98,16 @@ async function callGeminiOnce(
   return questions
 }
 
-// Tries the primary quiz model first; on any error (quota, rate limit,
-// transient failure), retries once against the fallback model instead of
-// failing outright - see the comment on QUIZ_MODEL_PRIMARY/FALLBACK above for
-// why this degradation is acceptable for quiz content specifically.
-async function callGemini(
-  prompt: string,
-  dataText: string,
-  responseSchema: object
-): Promise<{ questions: unknown[]; usedFallbackModel: boolean }> {
-  try {
-    const questions = await callGeminiOnce(QUIZ_MODEL_PRIMARY, prompt, dataText, responseSchema)
-    return { questions, usedFallbackModel: false }
-  } catch {
-    const questions = await callGeminiOnce(QUIZ_MODEL_FALLBACK, prompt, dataText, responseSchema)
-    return { questions, usedFallbackModel: true }
-  }
-}
-
 // Generates Part 1 (15 questions: pinyin_choice/listening_choice/tone_choice)
 // via its own Gemini call, separate from Part 2 - so each call is smaller/
 // faster, and a failure in one part doesn't require redoing the other.
 export async function generateQuizPart1(result: ExtractionResult): Promise<QuizGenerationResult<Part1Question>> {
-  const { questions, usedFallbackModel } = await callGemini(
-    PART1_PROMPT,
-    lessonDataText(result),
-    GEMINI_QUIZ_PART1_RESPONSE_SCHEMA
-  )
-  return { questions: questions.map((q) => Part1QuestionSchema.parse(q)), usedFallbackModel }
+  const questions = await callGemini(PART1_PROMPT, lessonDataText(result), GEMINI_QUIZ_PART1_RESPONSE_SCHEMA)
+  return { questions: questions.map((q) => Part1QuestionSchema.parse(q)), usedFallbackModel: false }
 }
 
 // Generates Part 2 (15 questions: matching/fill_blank/sentence_order).
 export async function generateQuizPart2(result: ExtractionResult): Promise<QuizGenerationResult<Part2Question>> {
-  const { questions, usedFallbackModel } = await callGemini(
-    PART2_PROMPT,
-    lessonDataText(result),
-    GEMINI_QUIZ_PART2_RESPONSE_SCHEMA
-  )
-  return { questions: questions.map((q) => Part2QuestionSchema.parse(q)), usedFallbackModel }
+  const questions = await callGemini(PART2_PROMPT, lessonDataText(result), GEMINI_QUIZ_PART2_RESPONSE_SCHEMA)
+  return { questions: questions.map((q) => Part2QuestionSchema.parse(q)), usedFallbackModel: false }
 }

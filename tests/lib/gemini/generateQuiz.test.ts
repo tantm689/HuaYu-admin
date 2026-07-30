@@ -98,7 +98,7 @@ describe('generateQuizPart1', () => {
     generateContentMock.mockReset()
   })
 
-  it('returns 15 validated part-1 questions parsed from the Gemini response, usedFallbackModel false on primary success', async () => {
+  it('returns 15 validated part-1 questions parsed from the Gemini response, usedFallbackModel always false', async () => {
     generateContentMock.mockResolvedValue({ text: JSON.stringify({ questions: fifteenPart1Questions() }) })
 
     const { questions, usedFallbackModel } = await generateQuizPart1(baseResult())
@@ -110,32 +110,18 @@ describe('generateQuizPart1', () => {
     expect(generateContentMock).toHaveBeenCalledWith(expect.objectContaining({ model: 'gemini-3.5-flash' }))
   })
 
-  it('retries against the fallback model when the primary model throws, and reports usedFallbackModel true', async () => {
-    generateContentMock
-      .mockRejectedValueOnce(new Error('quota exceeded'))
-      .mockResolvedValueOnce({ text: JSON.stringify({ questions: fifteenPart1Questions() }) })
-
-    const { questions, usedFallbackModel } = await generateQuizPart1(baseResult())
-
-    expect(questions).toHaveLength(15)
-    expect(usedFallbackModel).toBe(true)
-    expect(generateContentMock).toHaveBeenCalledTimes(2)
-    expect(generateContentMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ model: 'gemini-3.5-flash' }))
-    expect(generateContentMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ model: 'gemini-3-flash' }))
-  })
-
-  it('throws when both the primary and fallback model fail', async () => {
+  it('throws when the model call fails, with no retry against a different model', async () => {
     generateContentMock.mockRejectedValue(new Error('service unavailable'))
     await expect(generateQuizPart1(baseResult())).rejects.toThrow('service unavailable')
-    expect(generateContentMock).toHaveBeenCalledTimes(2)
+    expect(generateContentMock).toHaveBeenCalledTimes(1)
   })
 
-  it('throws when Gemini returns invalid JSON (from the fallback, after the primary also fails validation)', async () => {
+  it('throws when Gemini returns invalid JSON', async () => {
     generateContentMock.mockResolvedValue({ text: 'not json' })
     await expect(generateQuizPart1(baseResult())).rejects.toThrow(/not valid JSON/)
   })
 
-  it('throws when the response fails schema validation on both models', async () => {
+  it('throws when the response fails schema validation', async () => {
     generateContentMock.mockResolvedValue({
       text: JSON.stringify({ questions: [{ part: 1, type: 'pinyin_choice', order: 1 }] }),
     })
