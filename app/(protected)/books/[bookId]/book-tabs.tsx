@@ -157,7 +157,7 @@ export function BookTabs({ bookId, lessons, jobs }: Props) {
         ) : (
           <div className="flex flex-col gap-4">
             {lessons.map((lesson) => (
-              <Link key={lesson.id} href={`/lessons/${lesson.id}`}>
+              <Link key={lesson.id} href={`/lessons/${lesson.id}/edit`}>
                 <Card className="cursor-pointer transition-all hover:border-primary/40 hover:shadow-md">
                   <CardHeader className="flex items-start justify-between gap-3">
                     <div>
