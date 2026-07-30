@@ -280,7 +280,7 @@ export default function JobQuizPage({ params }: Props) {
   const [keyedQuestions, setKeyedQuestions] = useState<KeyedQuestion[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isGenerating, setIsGenerating] = useState(false)
+  const [generatingPart, setGeneratingPart] = useState<1 | 2 | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -312,28 +312,29 @@ export default function JobQuizPage({ params }: Props) {
     loadJob()
   }, [loadJob])
 
-  async function handleGenerate() {
-    if (keyedQuestions && keyedQuestions.length > 0) {
+  async function handleGenerate(part: 1 | 2) {
+    const existingCountForPart = (keyedQuestions ?? []).filter((kq) => kq.question.part === part).length
+    if (existingCountForPart > 0) {
       const confirmed = window.confirm(
-        "Sẽ xoá toàn bộ 30 câu hỏi hiện tại (kể cả đã sửa tay) và sinh lại từ đầu, tiếp tục?"
+        `Sẽ xoá 15 câu hỏi Phần ${part} hiện tại (kể cả đã sửa tay) và sinh lại từ đầu, tiếp tục?`
       )
       if (!confirmed) return
     }
 
-    setIsGenerating(true)
+    setGeneratingPart(part)
     setActionError(null)
     try {
-      const res = await fetch(`/api/jobs/${jobId}/quiz`, { method: "POST" })
+      const res = await fetch(`/api/jobs/${jobId}/quiz?part=${part}`, { method: "POST" })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        throw new Error(body.error ?? "Sinh quiz thất bại.")
+        throw new Error(body.error ?? `Sinh Phần ${part} thất bại.`)
       }
       const { quizQuestions } = (await res.json()) as { quizQuestions: QuizQuestion[] }
       setKeyedQuestions(quizQuestions.map((question) => ({ key: makeQuestionKey(), question })))
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Sinh quiz thất bại.")
+      setActionError(err instanceof Error ? err.message : `Sinh Phần ${part} thất bại.`)
     } finally {
-      setIsGenerating(false)
+      setGeneratingPart(null)
     }
   }
 
@@ -428,8 +429,19 @@ export default function JobQuizPage({ params }: Props) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-4">
-          <Button type="button" onClick={handleGenerate} disabled={isGenerating}>
-            {isGenerating ? "Đang sinh quiz..." : keyedQuestions.length > 0 ? "Sinh lại Quiz" : "Sinh Quiz"}
+          <Button type="button" onClick={() => handleGenerate(1)} disabled={generatingPart !== null}>
+            {generatingPart === 1
+              ? "Đang sinh Phần 1..."
+              : part1.length > 0
+                ? "Sinh lại Phần 1"
+                : "Sinh Phần 1"}
+          </Button>
+          <Button type="button" onClick={() => handleGenerate(2)} disabled={generatingPart !== null}>
+            {generatingPart === 2
+              ? "Đang sinh Phần 2..."
+              : part2.length > 0
+                ? "Sinh lại Phần 2"
+                : "Sinh Phần 2"}
           </Button>
           {keyedQuestions.length > 0 && (
             <Button type="button" variant="outline" onClick={handleSave} disabled={isSaving}>
@@ -441,8 +453,10 @@ export default function JobQuizPage({ params }: Props) {
 
         {actionError && <p className="text-sm text-destructive">{actionError}</p>}
 
-        {keyedQuestions.length === 0 && !isGenerating && (
-          <p className="text-sm text-muted-foreground">Chưa có câu hỏi quiz nào. Bấm &quot;Sinh Quiz&quot; để bắt đầu.</p>
+        {keyedQuestions.length === 0 && generatingPart === null && (
+          <p className="text-sm text-muted-foreground">
+            Chưa có câu hỏi quiz nào. Bấm &quot;Sinh Phần 1&quot; và &quot;Sinh Phần 2&quot; để bắt đầu (mỗi phần sinh riêng, có thể mất khoảng 1-2 phút mỗi lần).
+          </p>
         )}
 
         {part1.length > 0 && (

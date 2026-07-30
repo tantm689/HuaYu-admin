@@ -1,6 +1,6 @@
 import { createServerSupabase } from '@/lib/supabase/server'
 import { ExtractionResultSchema } from '@/lib/gemini/schema'
-import { generateQuiz } from '@/lib/gemini/generateQuiz'
+import { generateQuizPart1, generateQuizPart2 } from '@/lib/gemini/generateQuiz'
 import type { QuizQuestion } from '@/lib/gemini/quizSchema'
 import type { JobStatus } from '@/lib/db/types'
 
@@ -12,20 +12,50 @@ async function loadJob(supabase: ReturnType<typeof createServerSupabase>, jobId:
   return job
 }
 
-// Generates a fresh set of 30 quiz questions from the job's reviewed
-// content, overwriting any existing quiz draft. Only reachable once audio
-// has been generated ('audio_ready' or later), matching the pipeline order:
-// text -> audio -> quiz -> import.
-export async function generateJobQuiz(jobId: string): Promise<QuizQuestion[]> {
-  const supabase = createServerSupabase()
-  const job = await loadJob(supabase, jobId)
-
-  if (job.status !== 'audio_ready' && job.status !== 'quiz_ready') {
+function requireQuizReady(status: string) {
+  if (status !== 'audio_ready' && status !== 'quiz_ready') {
     throw new JobNotReadyForQuizError('Công việc cần hoàn tất bước "Sinh & duyệt Audio" trước khi sinh quiz.')
   }
+}
+
+// Generates a fresh Part 1 (15 questions: pinyin_choice/listening_choice/
+// tone_choice) from the job's reviewed content, overwriting only Part 1 of
+// any existing quiz draft - Part 2 (if already generated) is left untouched,
+// so a Part 2 failure/regenerate never has to redo Part 1. Only reachable
+// once audio has been generated ('audio_ready' or later), matching the
+// pipeline order: text -> audio -> quiz -> import.
+export async function generateJobQuizPart1(jobId: string): Promise<QuizQuestion[]> {
+  const supabase = createServerSupabase()
+  const job = await loadJob(supabase, jobId)
+  requireQuizReady(job.status)
 
   const result = ExtractionResultSchema.parse(job.raw_json)
-  const quizQuestions = await generateQuiz(result)
+  const part1Questions = await generateQuizPart1(result)
+  const existingPart2 = result.quizQuestions.filter((q) => q.part === 2)
+  const quizQuestions = [...part1Questions, ...existingPart2]
+
+  const { error: updateError } = await supabase
+    .from('extraction_jobs')
+    .update({ raw_json: { ...result, quizQuestions } })
+    .eq('id', jobId)
+
+  if (updateError) throw new Error(updateError.message)
+
+  return quizQuestions
+}
+
+// Generates a fresh Part 2 (15 questions: matching/fill_blank/sentence_order),
+// overwriting only Part 2 of any existing quiz draft - mirrors
+// generateJobQuizPart1 for Part 1.
+export async function generateJobQuizPart2(jobId: string): Promise<QuizQuestion[]> {
+  const supabase = createServerSupabase()
+  const job = await loadJob(supabase, jobId)
+  requireQuizReady(job.status)
+
+  const result = ExtractionResultSchema.parse(job.raw_json)
+  const part2Questions = await generateQuizPart2(result)
+  const existingPart1 = result.quizQuestions.filter((q) => q.part === 1)
+  const quizQuestions = [...existingPart1, ...part2Questions]
 
   const { error: updateError } = await supabase
     .from('extraction_jobs')

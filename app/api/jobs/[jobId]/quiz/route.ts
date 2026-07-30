@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/supabase/requireAdmin'
-import { generateJobQuiz, saveJobQuiz, JobNotReadyForQuizError } from '@/lib/db/generateJobQuiz'
+import {
+  generateJobQuizPart1,
+  generateJobQuizPart2,
+  saveJobQuiz,
+  JobNotReadyForQuizError,
+} from '@/lib/db/generateJobQuiz'
 import { QuizQuestionSchema } from '@/lib/gemini/quizSchema'
 import { z } from 'zod'
 
+// Generates one part (1 or 2) of the job's quiz, driven by ?part=1|2 -
+// split into two smaller calls instead of one 30-question call so each
+// request is faster and a failure in one part doesn't require redoing the
+// other (see lib/gemini/generateQuiz.ts).
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ jobId: string }> }
@@ -12,9 +21,15 @@ export async function POST(
   if (!authorized.authorized) return authorized.response
 
   const { jobId } = await params
+  const url = new URL(request.url)
+  const part = url.searchParams.get('part')
+
+  if (part !== '1' && part !== '2') {
+    return NextResponse.json({ error: 'part query param must be "1" or "2"' }, { status: 400 })
+  }
 
   try {
-    const quizQuestions = await generateJobQuiz(jobId)
+    const quizQuestions = part === '1' ? await generateJobQuizPart1(jobId) : await generateJobQuizPart2(jobId)
     return NextResponse.json({ quizQuestions })
   } catch (err) {
     if (err instanceof JobNotReadyForQuizError) {
