@@ -15,6 +15,7 @@ import { Tabs, TabsList, TabsTab, TabsIndicator, TabsPanel } from "@/components/
 import { moveItem } from "@/lib/moveItem"
 import { canMoveWithinPart, moveQuestionWithinPart } from "@/lib/quizReorder"
 import { EditableText } from "@/components/editable-text"
+import { LessonStatusControls } from "@/app/(protected)/lessons/[lessonId]/status-controls"
 import { BlockActions } from "@/components/block-actions"
 import { SectionBlock } from "@/components/grammar-editor"
 import { DialogueLineBlock } from "@/components/dialogue-line-block"
@@ -1586,12 +1587,13 @@ export default function LessonEditPage({ params }: Props) {
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 pb-16">
       <div className="sticky top-0 z-10 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80">
         <h1 className="text-lg font-semibold tracking-tight text-foreground">
-          Sửa Bài {data.lessonNo}
+          Bài {data.lessonNo}: {data.titleVi || data.titleZh}
         </h1>
         <div className="flex flex-wrap items-center gap-2">
           {saveError && <p className="text-sm text-destructive">{saveError}</p>}
           {saveSuccess && <p className="text-sm text-status-success">Đã lưu.</p>}
-          <Button variant="outline" nativeButton={false} onClick={() => router.push(`/lessons/${lessonId}`)}>
+          <LessonStatusControls lessonId={data.id} status={data.status} />
+          <Button variant="outline" nativeButton={false} onClick={() => router.push(`/books/${data.bookId}`)}>
             Quay lại
           </Button>
           {isEditable && (
