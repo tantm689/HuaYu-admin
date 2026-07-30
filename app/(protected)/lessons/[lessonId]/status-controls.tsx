@@ -10,6 +10,11 @@ import type { VariantProps } from "class-variance-authority"
 interface Props {
   lessonId: string
   status: LessonStatus
+  // Called after a successful transition so callers that hold their own
+  // client-side copy of the lesson (like the edit page's `data` state) can
+  // refetch it - router.refresh() alone only re-runs Server Components and
+  // does nothing for state a Client Component fetched itself.
+  onStatusChange?: () => void
 }
 
 type BadgeVariant = VariantProps<typeof badgeVariants>["variant"]
@@ -26,7 +31,7 @@ const statusVariant: Record<LessonStatus, BadgeVariant> = {
   published: "success",
 }
 
-export function LessonStatusControls({ lessonId, status }: Props) {
+export function LessonStatusControls({ lessonId, status, onStatusChange }: Props) {
   const router = useRouter()
   const [isUpdating, setIsUpdating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -45,6 +50,7 @@ export function LessonStatusControls({ lessonId, status }: Props) {
         throw new Error(body.error ?? "Cập nhật trạng thái thất bại.")
       }
       router.refresh()
+      onStatusChange?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Cập nhật trạng thái thất bại.")
     } finally {

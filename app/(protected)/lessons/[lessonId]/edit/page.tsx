@@ -1592,7 +1592,7 @@ export default function LessonEditPage({ params }: Props) {
         <div className="flex flex-wrap items-center gap-2">
           {saveError && <p className="text-sm text-destructive">{saveError}</p>}
           {saveSuccess && <p className="text-sm text-status-success">Đã lưu.</p>}
-          <LessonStatusControls lessonId={data.id} status={data.status} />
+          <LessonStatusControls lessonId={data.id} status={data.status} onStatusChange={load} />
           <Button variant="outline" nativeButton={false} onClick={() => router.push(`/books/${data.bookId}`)}>
             Quay lại
           </Button>
