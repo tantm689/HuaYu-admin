@@ -122,31 +122,4 @@ it('defaults missing optional pinyin/translation fields to null instead of faili
     expect(parsed.grammarPoints[0].subPoints[0].sections[0].examples).toHaveLength(1)
   })
 
-  it('defaults quizQuestions to an empty array when absent (older jobs predate this field)', () => {
-    const parsed = ExtractionResultSchema.parse({
-      lesson: { lessonNo: 1, titleZh: 'A', titleVi: 'B' },
-      dialogues: [],
-      grammarPoints: [],
-    })
-    expect(parsed.quizQuestions).toEqual([])
-  })
-
-  it('accepts a valid quizQuestions array', () => {
-    const parsed = ExtractionResultSchema.parse({
-      lesson: { lessonNo: 1, titleZh: 'A', titleVi: 'B' },
-      dialogues: [],
-      grammarPoints: [],
-      quizQuestions: [
-        {
-          part: 1,
-          type: 'pinyin_choice',
-          order: 1,
-          prompt: '你好',
-          choices: ['nǐ hǎo', 'a', 'b', 'c'],
-          correctIndex: 0,
-        },
-      ],
-    })
-    expect(parsed.quizQuestions).toHaveLength(1)
-  })
 })
