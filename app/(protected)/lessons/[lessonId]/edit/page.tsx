@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useCallback, useEffect, useState } from "react"
+import { use, useCallback, useEffect, useRef, useState } from "react"
 import { Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -432,8 +432,15 @@ export default function LessonEditPage({ params }: Props) {
   const [quizActionError, setQuizActionError] = useState<string | null>(null)
   const [quizFallbackWarning, setQuizFallbackWarning] = useState<string | null>(null)
 
+  const hasLoadedOnce = useRef(false)
+
   const load = useCallback(async () => {
-    setIsLoading(true)
+    // Only show the full-page "Đang tải..." screen on the initial load, when
+    // there's nothing on screen yet. Every later call (after saving, or
+    // regenerating audio/quiz) refetches in the background instead - toggling
+    // isLoading here would swap the whole page out and back in, which reads
+    // as an unwanted page refresh even though nothing actually reloaded.
+    if (!hasLoadedOnce.current) setIsLoading(true)
     setLoadError(null)
     try {
       const res = await fetch(`/api/lessons/${lessonId}`)
@@ -443,6 +450,7 @@ export default function LessonEditPage({ params }: Props) {
       }
       const json: LessonFullView = await res.json()
       setData(json)
+      hasLoadedOnce.current = true
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Không tải được bài học.")
     } finally {
