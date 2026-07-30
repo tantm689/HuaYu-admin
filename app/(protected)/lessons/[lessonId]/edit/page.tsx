@@ -13,12 +13,14 @@ import {
 } from "@/components/ui/accordion"
 import { Tabs, TabsList, TabsTab, TabsIndicator, TabsPanel } from "@/components/ui/tabs"
 import { moveItem } from "@/lib/moveItem"
+import { canMoveWithinPart, moveQuestionWithinPart } from "@/lib/quizReorder"
 import { EditableText } from "@/components/editable-text"
 import { BlockActions } from "@/components/block-actions"
 import { SectionBlock } from "@/components/grammar-editor"
 import { DialogueLineBlock } from "@/components/dialogue-line-block"
 import { VocabRow } from "@/components/vocab-row"
 import type { LessonFullView } from "@/lib/db/getLessonFull"
+import type { QuizQuestionType } from "@/lib/db/types"
 import { dialogueDisplayNames } from "@/lib/dialogueDisplayName"
 import type { TtsVoice } from "@/lib/tts/generateAudio"
 
@@ -114,6 +116,301 @@ function toApiId(id: string): string | null {
   return id.startsWith("temp-") ? null : id
 }
 
+// The DB row's `payload` only holds the type-specific fields (part/type/
+// order live as separate columns) - this reconstructs the same discriminated
+// shape the old job-scoped quiz page's QuestionCard rendered, so that
+// component's per-type branches can be reused verbatim here.
+type QuizQuestionView = {
+  id: string
+  part: 1 | 2
+  order: number
+} & (
+  | { type: "pinyin_choice"; prompt: string; choices: string[]; correctIndex: number }
+  | { type: "listening_choice"; audioUrl: string; choices: string[]; correctIndex: number }
+  | { type: "tone_choice"; wordZh: string; pinyinNoTone: string; choices: string[]; correctIndex: number }
+  | { type: "matching"; pairs: { left: string; right: string }[] }
+  | { type: "fill_blank"; sentence: string; choices: string[]; correctIndex: number }
+  | { type: "sentence_order"; words: string[]; correctOrder: number[] }
+)
+
+const QUIZ_TYPE_LABELS: Record<QuizQuestionType, string> = {
+  pinyin_choice: "Chọn Pinyin/Chữ Hán",
+  listening_choice: "Nghe & chọn đáp án",
+  tone_choice: "Nhận biết thanh điệu",
+  matching: "Ghép nghĩa",
+  fill_blank: "Điền từ vào chỗ trống",
+  sentence_order: "Sắp xếp câu",
+}
+
+function toQuizQuestionView(row: {
+  id: string
+  part: 1 | 2
+  type: QuizQuestionType
+  order: number
+  payload: unknown
+}): QuizQuestionView {
+  return { id: row.id, part: row.part, order: row.order, type: row.type, ...(row.payload as object) } as QuizQuestionView
+}
+
+function QuizQuestionCard({
+  question,
+  editable,
+  onChangePayload,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
+}: {
+  question: QuizQuestionView
+  editable: boolean
+  onChangePayload: (patch: Record<string, unknown>) => void
+  onRemove: () => void
+  onMoveUp: () => void
+  onMoveDown: () => void
+  canMoveUp: boolean
+  canMoveDown: boolean
+}) {
+  return (
+    <div className="group/question relative flex flex-col gap-2 rounded-lg border bg-card p-4 transition-colors has-[[data-danger]:hover]:border-destructive has-[[data-danger]:hover]:bg-destructive/5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          {QUIZ_TYPE_LABELS[question.type]}
+        </span>
+        {editable && (
+          <BlockActions
+            onMoveUp={onMoveUp}
+            onMoveDown={onMoveDown}
+            onRemove={onRemove}
+            canMoveUp={canMoveUp}
+            canMoveDown={canMoveDown}
+            removeLabel="Xoá câu hỏi"
+            className="group-hover/question:opacity-100"
+          />
+        )}
+      </div>
+
+      {question.type === "pinyin_choice" && (
+        <>
+          <EditableText
+            value={question.prompt}
+            onChange={(prompt) => onChangePayload({ prompt })}
+            className="field-zh"
+            disabled={!editable}
+          />
+          {question.choices.map((choice, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="radio"
+                name={`${question.id}-correct`}
+                checked={question.correctIndex === i}
+                onChange={() => onChangePayload({ correctIndex: i })}
+                disabled={!editable}
+                aria-label={`Đáp án đúng là lựa chọn ${i + 1}`}
+              />
+              <EditableText
+                value={choice}
+                onChange={(v) => {
+                  const choices = [...question.choices]
+                  choices[i] = v
+                  onChangePayload({ choices })
+                }}
+                className="flex-1 text-sm"
+                disabled={!editable}
+              />
+            </div>
+          ))}
+        </>
+      )}
+
+      {question.type === "listening_choice" && (
+        <>
+          <audio controls preload="none" src={question.audioUrl} className="h-8 w-full max-w-xs" />
+          {question.choices.map((choice, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="radio"
+                name={`${question.id}-correct`}
+                checked={question.correctIndex === i}
+                onChange={() => onChangePayload({ correctIndex: i })}
+                disabled={!editable}
+                aria-label={`Đáp án đúng là lựa chọn ${i + 1}`}
+              />
+              <EditableText
+                value={choice}
+                onChange={(v) => {
+                  const choices = [...question.choices]
+                  choices[i] = v
+                  onChangePayload({ choices })
+                }}
+                className="flex-1 text-sm"
+                disabled={!editable}
+              />
+            </div>
+          ))}
+        </>
+      )}
+
+      {question.type === "tone_choice" && (
+        <>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <EditableText
+              value={question.wordZh}
+              onChange={(wordZh) => onChangePayload({ wordZh })}
+              className="field-zh"
+              disabled={!editable}
+            />
+            <EditableText
+              value={question.pinyinNoTone}
+              onChange={(pinyinNoTone) => onChangePayload({ pinyinNoTone })}
+              className="w-auto"
+              disabled={!editable}
+            />
+          </div>
+          {question.choices.map((choice, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="radio"
+                name={`${question.id}-correct`}
+                checked={question.correctIndex === i}
+                onChange={() => onChangePayload({ correctIndex: i })}
+                disabled={!editable}
+                aria-label={`Đáp án đúng là lựa chọn ${i + 1}`}
+              />
+              <EditableText
+                value={choice}
+                onChange={(v) => {
+                  const choices = [...question.choices]
+                  choices[i] = v
+                  onChangePayload({ choices })
+                }}
+                className="flex-1 text-sm"
+                disabled={!editable}
+              />
+            </div>
+          ))}
+        </>
+      )}
+
+      {question.type === "matching" && (
+        <div className="flex flex-col gap-1">
+          {question.pairs.map((pair, i) => (
+            <div key={i} className="grid grid-cols-2 gap-2">
+              <EditableText
+                value={pair.left}
+                onChange={(left) => {
+                  const pairs = [...question.pairs]
+                  pairs[i] = { ...pairs[i], left }
+                  onChangePayload({ pairs })
+                }}
+                className="field-zh"
+                disabled={!editable}
+              />
+              <EditableText
+                value={pair.right}
+                onChange={(right) => {
+                  const pairs = [...question.pairs]
+                  pairs[i] = { ...pairs[i], right }
+                  onChangePayload({ pairs })
+                }}
+                className="text-sm"
+                disabled={!editable}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {question.type === "fill_blank" && (
+        <>
+          <EditableText
+            value={question.sentence}
+            onChange={(sentence) => onChangePayload({ sentence })}
+            className="field-zh"
+            disabled={!editable}
+          />
+          {question.choices.map((choice, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="radio"
+                name={`${question.id}-correct`}
+                checked={question.correctIndex === i}
+                onChange={() => onChangePayload({ correctIndex: i })}
+                disabled={!editable}
+                aria-label={`Đáp án đúng là lựa chọn ${i + 1}`}
+              />
+              <EditableText
+                value={choice}
+                onChange={(v) => {
+                  const choices = [...question.choices]
+                  choices[i] = v
+                  onChangePayload({ choices })
+                }}
+                className="flex-1 text-sm"
+                disabled={!editable}
+              />
+            </div>
+          ))}
+        </>
+      )}
+
+      {question.type === "sentence_order" && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-muted-foreground">
+            Các từ đã xáo trộn (thứ tự hiển thị cho học viên) — số bên dưới mỗi từ là vị trí đúng của từ đó
+            trong câu (bắt đầu từ 1):
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {question.words.map((word, wordIdx) => {
+              const correctPosition = question.correctOrder.indexOf(wordIdx)
+              return (
+                <div key={wordIdx} className="flex flex-col items-center gap-1 rounded-md border p-2">
+                  <EditableText
+                    value={word}
+                    onChange={(v) => {
+                      const words = [...question.words]
+                      words[wordIdx] = v
+                      onChangePayload({ words })
+                    }}
+                    className="field-zh w-auto"
+                    disabled={!editable}
+                  />
+                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                    Vị trí đúng
+                    <input
+                      type="number"
+                      min={1}
+                      max={question.words.length}
+                      value={correctPosition + 1}
+                      disabled={!editable}
+                      onChange={(e) => {
+                        const newPosition = Number(e.target.value) - 1
+                        if (
+                          Number.isNaN(newPosition) ||
+                          newPosition < 0 ||
+                          newPosition >= question.words.length
+                        ) {
+                          return
+                        }
+                        const correctOrder = [...question.correctOrder]
+                        correctOrder.splice(correctPosition, 1)
+                        correctOrder.splice(newPosition, 0, wordIdx)
+                        onChangePayload({ correctOrder })
+                      }}
+                      aria-label={`Vị trí đúng của từ "${word}" trong câu`}
+                      className="h-7 w-14 rounded-md border bg-background px-1 text-center text-sm"
+                    />
+                  </label>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function LessonEditPage({ params }: Props) {
   const { lessonId } = use(params)
   const router = useRouter()
@@ -130,6 +427,11 @@ export default function LessonEditPage({ params }: Props) {
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false)
   const [audioActionError, setAudioActionError] = useState<string | null>(null)
   const [regeneratingAudioId, setRegeneratingAudioId] = useState<string | null>(null)
+
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestionView[] | null>(null)
+  const [generatingQuizPart, setGeneratingQuizPart] = useState<1 | 2 | null>(null)
+  const [quizActionError, setQuizActionError] = useState<string | null>(null)
+  const [quizFallbackWarning, setQuizFallbackWarning] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setIsLoading(true)
@@ -153,6 +455,32 @@ export default function LessonEditPage({ params }: Props) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load()
   }, [load])
+
+  // Quiz questions live in their own table (not covered by LessonFullView), so
+  // they need a separate fetch alongside the main `load()`. The GET route
+  // returns rows unsorted, hence the client-side sort by `order`.
+  const loadQuiz = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/lessons/${lessonId}/quiz`)
+      if (!res.ok) return
+      const rows: {
+        id: string
+        part: 1 | 2
+        type: QuizQuestionType
+        order: number
+        payload: unknown
+      }[] = await res.json()
+      setQuizQuestions(rows.map(toQuizQuestionView).sort((a, b) => a.part - b.part || a.order - b.order))
+    } catch {
+      // Quiz questions are optional content; a failed load here shouldn't
+      // block the rest of the page, which already loaded via `load()`.
+    }
+  }, [lessonId])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadQuiz()
+  }, [loadQuiz])
 
   async function handleSave() {
     if (!data) return
@@ -283,6 +611,97 @@ export default function LessonEditPage({ params }: Props) {
       setAudioActionError(err instanceof Error ? err.message : "Tạo lại audio thất bại.")
     } finally {
       setRegeneratingAudioId(null)
+    }
+  }
+
+  async function handleGenerateQuizPart(part: 1 | 2) {
+    const existingCount = (quizQuestions ?? []).filter((q) => q.part === part).length
+    if (existingCount > 0) {
+      const confirmed = window.confirm(
+        `Sẽ xoá ${existingCount} câu hỏi Phần ${part} hiện tại (kể cả đã sửa tay) và sinh lại từ đầu, tiếp tục?`
+      )
+      if (!confirmed) return
+    }
+
+    setGeneratingQuizPart(part)
+    setQuizActionError(null)
+    setQuizFallbackWarning(null)
+    try {
+      const res = await fetch(`/api/lessons/${lessonId}/quiz?part=${part}`, { method: "POST" })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? `Sinh Phần ${part} thất bại.`)
+      }
+      const { usedFallbackModel } = (await res.json()) as { usedFallbackModel: boolean }
+      if (usedFallbackModel) {
+        setQuizFallbackWarning(
+          `Phần ${part} vừa được sinh bằng model dự phòng (model chính lỗi/hết quota) — nên kiểm tra kỹ hơn bình thường.`
+        )
+      }
+      await loadQuiz()
+    } catch (err) {
+      setQuizActionError(err instanceof Error ? err.message : `Sinh Phần ${part} thất bại.`)
+    } finally {
+      setGeneratingQuizPart(null)
+    }
+  }
+
+  async function updateQuizQuestionPayload(id: string, patch: Record<string, unknown>) {
+    const target = (quizQuestions ?? []).find((q) => q.id === id)
+    if (!target) return
+    setQuizQuestions((prev) =>
+      prev ? prev.map((q) => (q.id === id ? ({ ...q, ...patch } as QuizQuestionView) : q)) : prev
+    )
+    // `id`/`part`/`type`/`order` are their own DB columns - only the
+    // type-specific remainder belongs in `payload`.
+    const merged: Record<string, unknown> = { ...target, ...patch }
+    for (const column of ["id", "part", "type", "order"]) delete merged[column]
+    const payload = merged
+    try {
+      await fetch(`/api/lessons/${lessonId}/quiz`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, payload }),
+      })
+    } catch {
+      setQuizActionError("Lưu thay đổi câu hỏi thất bại, thử lại.")
+    }
+  }
+
+  async function removeQuizQuestion(id: string) {
+    setQuizQuestions((prev) => (prev ? prev.filter((q) => q.id !== id) : prev))
+    try {
+      await fetch(`/api/lessons/${lessonId}/quiz?id=${id}`, { method: "DELETE" })
+    } catch {
+      setQuizActionError("Xoá câu hỏi thất bại, thử lại.")
+      await loadQuiz()
+    }
+  }
+
+  // moveQuestionWithinPart (lib/quizReorder.ts) swaps the question at `index`
+  // with its nearest same-part neighbor and renumbers `order` 1..N within
+  // each part - never crossing the Part 1/Part 2 boundary. Since this tab
+  // writes straight to the DB per edit (no separate "Lưu" step for quiz),
+  // every row whose `order` changed as a result gets persisted via `order`
+  // (never `payload` - order is its own DB column, not part of payload).
+  function moveQuizQuestion(id: string, direction: -1 | 1) {
+    const prev = quizQuestions
+    if (!prev) return
+    const index = prev.findIndex((q) => q.id === id)
+    if (index === -1) return
+    const reordered = moveQuestionWithinPart(prev, index, direction)
+    if (reordered === prev) return
+
+    setQuizQuestions(reordered)
+
+    const previousOrderById = new Map(prev.map((q) => [q.id, q.order]))
+    for (const q of reordered) {
+      if (previousOrderById.get(q.id) === q.order) continue
+      fetch(`/api/lessons/${lessonId}/quiz`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: q.id, order: q.order }),
+      }).catch(() => setQuizActionError("Lưu thứ tự câu hỏi thất bại, thử lại."))
     }
   }
 
@@ -1695,6 +2114,83 @@ export default function LessonEditPage({ params }: Props) {
           {data.dialogues.length === 0 && (
             <p className="text-sm text-muted-foreground">Chưa có hội thoại/từ vựng nào.</p>
           )}
+        </div>
+        </TabsPanel>
+
+        <TabsPanel value="quiz">
+        <div className="flex flex-col gap-6 rounded-lg border bg-card p-6">
+          {isEditable && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/20 p-4">
+              <Button
+                type="button"
+                onClick={() => handleGenerateQuizPart(1)}
+                disabled={generatingQuizPart !== null}
+              >
+                {generatingQuizPart === 1
+                  ? "Đang sinh Phần 1..."
+                  : (quizQuestions ?? []).some((q) => q.part === 1)
+                    ? "Sinh lại Phần 1"
+                    : "Sinh Phần 1"}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => handleGenerateQuizPart(2)}
+                disabled={generatingQuizPart !== null}
+              >
+                {generatingQuizPart === 2
+                  ? "Đang sinh Phần 2..."
+                  : (quizQuestions ?? []).some((q) => q.part === 2)
+                    ? "Sinh lại Phần 2"
+                    : "Sinh Phần 2"}
+              </Button>
+            </div>
+          )}
+
+          {isEditable && data.dialogues.every((d) => d.vocabulary.every((v) => !v.audioUrl)) && (
+            <p className="rounded-md border border-status-warning/40 bg-status-warning-bg px-3 py-2 text-sm text-status-warning">
+              Chưa có từ vựng nào có audio. Nên sinh Audio trước để có câu hỏi dạng &quot;Nghe &amp; chọn đáp
+              án&quot;, nhưng vẫn có thể sinh Quiz ngay nếu muốn.
+            </p>
+          )}
+
+          {quizActionError && <p className="text-sm text-destructive">{quizActionError}</p>}
+          {quizFallbackWarning && (
+            <p className="rounded-md border border-status-warning/40 bg-status-warning-bg px-3 py-2 text-sm text-status-warning">
+              {quizFallbackWarning}
+            </p>
+          )}
+
+          {(quizQuestions ?? []).length === 0 && generatingQuizPart === null && (
+            <p className="text-sm text-muted-foreground">Chưa có câu hỏi quiz nào.</p>
+          )}
+
+          {([1, 2] as const).map((part) => {
+            const partQuestions = (quizQuestions ?? []).filter((q) => q.part === part)
+            if (partQuestions.length === 0) return null
+            return (
+              <section key={part} className="flex flex-col gap-3">
+                <h3 className="text-base font-semibold text-foreground">
+                  Phần {part} ({partQuestions.length} câu)
+                </h3>
+                {partQuestions.map((q) => {
+                  const flatIndex = (quizQuestions ?? []).findIndex((x) => x.id === q.id)
+                  return (
+                    <QuizQuestionCard
+                      key={q.id}
+                      question={q}
+                      editable={isEditable}
+                      onChangePayload={(patch) => updateQuizQuestionPayload(q.id, patch)}
+                      onRemove={() => removeQuizQuestion(q.id)}
+                      onMoveUp={() => moveQuizQuestion(q.id, -1)}
+                      onMoveDown={() => moveQuizQuestion(q.id, 1)}
+                      canMoveUp={canMoveWithinPart(quizQuestions ?? [], flatIndex, -1)}
+                      canMoveDown={canMoveWithinPart(quizQuestions ?? [], flatIndex, 1)}
+                    />
+                  )
+                })}
+              </section>
+            )
+          })}
         </div>
         </TabsPanel>
       </Tabs>
