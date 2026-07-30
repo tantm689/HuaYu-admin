@@ -55,11 +55,9 @@ export async function PATCH(
     )
   }
 
-  // Only 'pending'/'reviewed' jobs advance to 'reviewed' on save. A job past
-  // that (audio_ready/quiz_ready) keeps its status - otherwise saving a text
-  // tweak here would silently regress it back behind the audio/quiz gate
-  // it already cleared.
-  const nextStatus = job.status === 'pending' || job.status === 'reviewed' ? 'reviewed' : job.status
+  // 'imported' is excluded above, and 'failed' jobs haven't produced
+  // reviewable raw_json, so any save reaching here moves the job to 'reviewed'.
+  const nextStatus = 'reviewed'
 
   const { error } = await supabase
     .from('extraction_jobs')

@@ -90,7 +90,6 @@ function baseResult(): ExtractionResult {
       },
     ],
     grammarPoints: [],
-    quizQuestions: [],
   }
 }
 

@@ -3,8 +3,8 @@ import { generateAudio, type TtsVoice } from '@/lib/tts/generateAudio'
 
 const DEFAULT_VOICE: TtsVoice = 'zh-TW-HsiaoChenNeural'
 
-// See lib/db/generateJobAudio.ts for why this is capped rather than firing
-// every request via Promise.allSettled at once.
+// Capped rather than firing every request via Promise.allSettled at once,
+// since the TTS provider rate-limits concurrent requests.
 const TTS_CONCURRENCY = 5
 
 async function runWithConcurrency(tasks: (() => Promise<void>)[], concurrency: number): Promise<PromiseSettledResult<void>[]> {
@@ -28,8 +28,8 @@ async function runWithConcurrency(tasks: (() => Promise<void>)[], concurrency: n
   return results
 }
 
-// See lib/db/generateJobAudio.ts's ttsText for why this strips the
-// parenthetical part - e.g. "臺灣 (=台灣)" would otherwise be read twice.
+// Strips the parenthetical part - e.g. "臺灣 (=台灣)" would otherwise be read
+// twice.
 function ttsText(wordZh: string): string {
   return wordZh.replace(/\s*[（(].*$/, '').trim() || wordZh
 }
@@ -49,15 +49,14 @@ async function uploadAudio(
   })
   if (error) throw new Error(error.message)
   const { data } = supabase.storage.from('audio').getPublicUrl(path)
-  // See lib/db/generateJobAudio.ts's uploadAudio for why this cache-busts.
+  // Cache-busts so the storage CDN doesn't keep serving a stale cached
+  // response after this path is re-uploaded (e.g. on regeneration).
   return `${data.publicUrl}?v=${Date.now()}`
 }
 
-// Same TTS generation as generateJobAudio.ts, but operating directly on the
-// live vocabulary table via real row ids instead of a job's raw_json - for
-// lessons that were already imported before this feature existed (no
-// extraction_job left to route them through the audio page). Idempotent:
-// only fills rows where audio_url is still null.
+// Generates TTS audio directly on the live vocabulary table via real row
+// ids, for lessons that need audio filled in after import. Idempotent: only
+// fills rows where audio_url is still null.
 export async function generateLessonAudio(lessonId: string, voice: TtsVoice = DEFAULT_VOICE): Promise<void> {
   const supabase = createServerSupabase()
 

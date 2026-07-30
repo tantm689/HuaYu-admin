@@ -28,8 +28,6 @@ const lessonStatusVariant: Record<Lesson["status"], BadgeVariant> = {
 const jobStatusLabel: Record<ExtractionJob["status"], string> = {
   pending: "Đang chờ",
   reviewed: "Đã duyệt text",
-  audio_ready: "Đã duyệt audio",
-  quiz_ready: "Đã duyệt quiz",
   imported: "Đã nhập",
   failed: "Lỗi",
 }
@@ -37,8 +35,6 @@ const jobStatusLabel: Record<ExtractionJob["status"], string> = {
 const jobStatusVariant: Record<ExtractionJob["status"], BadgeVariant> = {
   pending: "pending",
   reviewed: "info",
-  audio_ready: "info",
-  quiz_ready: "info",
   imported: "success",
   failed: "destructive",
 }
