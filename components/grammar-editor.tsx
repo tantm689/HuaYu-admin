@@ -42,6 +42,7 @@ interface ExampleBlockProps {
   onMoveDown: () => void
   canMoveUp: boolean
   canMoveDown: boolean
+  disabled?: boolean
 }
 
 function ExampleBlock({
@@ -52,37 +53,43 @@ function ExampleBlock({
   onMoveDown,
   canMoveUp,
   canMoveDown,
+  disabled = false,
 }: ExampleBlockProps) {
   return (
     <div className="group/example relative rounded-r-md border-l-2 border-border py-1 pl-4 transition-colors has-[>div>[data-danger]:hover]:border-destructive has-[>div>[data-danger]:hover]:bg-destructive/5">
-      <div className="absolute top-1 right-0">
-        <BlockActions
-          onMoveUp={onMoveUp}
-          onMoveDown={onMoveDown}
-          onRemove={onRemove}
-          canMoveUp={canMoveUp}
-          canMoveDown={canMoveDown}
-          removeLabel="Xoá ví dụ"
-          className="group-hover/example:opacity-100"
-        />
-      </div>
+      {!disabled && (
+        <div className="absolute top-1 right-0">
+          <BlockActions
+            onMoveUp={onMoveUp}
+            onMoveDown={onMoveDown}
+            onRemove={onRemove}
+            canMoveUp={canMoveUp}
+            canMoveDown={canMoveDown}
+            removeLabel="Xoá ví dụ"
+            className="group-hover/example:opacity-100"
+          />
+        </div>
+      )}
       <EditableText
         value={example.textZh}
         onChange={(textZh) => onChange({ textZh })}
         placeholder="Câu ví dụ (chữ Hán)"
         className="text-lg leading-relaxed font-medium text-foreground"
+        disabled={disabled}
       />
       <EditableText
         value={example.pinyin ?? ""}
         onChange={(pinyin) => onChange({ pinyin: pinyin || null })}
         placeholder="Pinyin"
         className="text-sm text-muted-foreground"
+        disabled={disabled}
       />
       <EditableText
         value={example.translationVi ?? ""}
         onChange={(translationVi) => onChange({ translationVi: translationVi || null })}
         placeholder="Nghĩa tiếng Việt"
         className="text-base text-foreground/80"
+        disabled={disabled}
       />
     </div>
   )
@@ -94,6 +101,7 @@ interface ExampleListProps {
   onRemoveExample: (eIdx: number) => void
   onMoveExample: (eIdx: number, direction: -1 | 1) => void
   onAddExample: () => void
+  disabled?: boolean
 }
 
 function ExampleList({
@@ -102,6 +110,7 @@ function ExampleList({
   onRemoveExample,
   onMoveExample,
   onAddExample,
+  disabled = false,
 }: ExampleListProps) {
   return (
     <div className="flex flex-col gap-3">
@@ -115,15 +124,18 @@ function ExampleList({
           onMoveDown={() => onMoveExample(eIdx, 1)}
           canMoveUp={eIdx > 0}
           canMoveDown={eIdx < examples.length - 1}
+          disabled={disabled}
         />
       ))}
-      <button
-        type="button"
-        onClick={onAddExample}
-        className="self-start text-sm text-muted-foreground hover:text-foreground hover:underline"
-      >
-        + Thêm ví dụ
-      </button>
+      {!disabled && (
+        <button
+          type="button"
+          onClick={onAddExample}
+          className="self-start text-sm text-muted-foreground hover:text-foreground hover:underline"
+        >
+          + Thêm ví dụ
+        </button>
+      )}
     </div>
   )
 }
@@ -150,6 +162,8 @@ export interface SectionBlockProps {
   onRemoveItemExample: (itemIdx: number, eIdx: number) => void
   onMoveItemExample: (itemIdx: number, eIdx: number, direction: -1 | 1) => void
   onAddItemExample: (itemIdx: number) => void
+  /** Read-only mode: fields can't be opened and all add/move/delete controls are hidden. */
+  disabled?: boolean
 }
 
 export function SectionBlock({
@@ -171,32 +185,37 @@ export function SectionBlock({
   onRemoveItemExample,
   onMoveItemExample,
   onAddItemExample,
+  disabled = false,
 }: SectionBlockProps) {
   return (
     <section className="group/section relative rounded-md p-2 -m-2 transition-colors has-[>div>[data-danger]:hover]:bg-destructive/5 has-[>div>[data-danger]:hover]:outline-1 has-[>div>[data-danger]:hover]:outline-destructive/40">
-      <div className="absolute top-2 right-2">
-        <BlockActions
-          onMoveUp={() => onMoveSection(-1)}
-          onMoveDown={() => onMoveSection(1)}
-          onRemove={onRemoveSection}
-          canMoveUp={canMoveUp}
-          canMoveDown={canMoveDown}
-          removeLabel="Xoá đề mục"
-          className="group-hover/section:opacity-100"
-        />
-      </div>
+      {!disabled && (
+        <div className="absolute top-2 right-2">
+          <BlockActions
+            onMoveUp={() => onMoveSection(-1)}
+            onMoveDown={() => onMoveSection(1)}
+            onRemove={onRemoveSection}
+            canMoveUp={canMoveUp}
+            canMoveDown={canMoveDown}
+            removeLabel="Xoá đề mục"
+            className="group-hover/section:opacity-100"
+          />
+        </div>
+      )}
 
       <EditableText
         value={section.label}
         onChange={(label) => onChangeSection({ label })}
         placeholder="Nhãn đề mục (Chức năng, Cấu trúc, Cách dùng...)"
         className="text-sm font-semibold tracking-wide text-foreground uppercase"
+        disabled={disabled}
       />
       <EditableText
         value={section.content ?? ""}
         onChange={(content) => onChangeSection({ content: content || null })}
         placeholder="Nội dung giải thích"
         className="mt-1 text-base leading-relaxed text-foreground/90"
+        disabled={disabled}
       />
 
       {(section.examples.length > 0 || section.items.length === 0) && (
@@ -207,6 +226,7 @@ export function SectionBlock({
             onRemoveExample={onRemoveExample}
             onMoveExample={onMoveExample}
             onAddExample={onAddExample}
+            disabled={disabled}
           />
         </div>
       )}
@@ -217,29 +237,33 @@ export function SectionBlock({
             key={itemIdx}
             className="group/item relative rounded-md p-2 -m-2 transition-colors has-[>div>[data-danger]:hover]:bg-destructive/5 has-[>div>[data-danger]:hover]:outline-1 has-[>div>[data-danger]:hover]:outline-destructive/40"
           >
-            <div className="absolute top-2 right-2">
-              <BlockActions
-                onMoveUp={() => onMoveItem(itemIdx, -1)}
-                onMoveDown={() => onMoveItem(itemIdx, 1)}
-                onRemove={() => onRemoveItem(itemIdx)}
-                canMoveUp={itemIdx > 0}
-                canMoveDown={itemIdx < section.items.length - 1}
-                removeLabel="Xoá ý"
-                className="group-hover/item:opacity-100"
-              />
-            </div>
+            {!disabled && (
+              <div className="absolute top-2 right-2">
+                <BlockActions
+                  onMoveUp={() => onMoveItem(itemIdx, -1)}
+                  onMoveDown={() => onMoveItem(itemIdx, 1)}
+                  onRemove={() => onRemoveItem(itemIdx)}
+                  canMoveUp={itemIdx > 0}
+                  canMoveDown={itemIdx < section.items.length - 1}
+                  removeLabel="Xoá ý"
+                  className="group-hover/item:opacity-100"
+                />
+              </div>
+            )}
             <div className="flex items-baseline gap-2">
               <EditableText
                 value={item.label}
                 onChange={(label) => onChangeItem(itemIdx, { label })}
                 placeholder="1"
                 className="w-10 shrink-0 text-base font-semibold text-foreground"
+                disabled={disabled}
               />
               <EditableText
                 value={item.content ?? ""}
                 onChange={(content) => onChangeItem(itemIdx, { content: content || null })}
                 placeholder="Nội dung của ý này"
                 className="text-base leading-relaxed text-foreground/90"
+                disabled={disabled}
               />
             </div>
             <div className="mt-2 ml-10">
@@ -249,17 +273,20 @@ export function SectionBlock({
                 onRemoveExample={(eIdx) => onRemoveItemExample(itemIdx, eIdx)}
                 onMoveExample={(eIdx, direction) => onMoveItemExample(itemIdx, eIdx, direction)}
                 onAddExample={() => onAddItemExample(itemIdx)}
+                disabled={disabled}
               />
             </div>
           </div>
         ))}
-        <button
-          type="button"
-          onClick={onAddItem}
-          className="self-start text-sm text-muted-foreground hover:text-foreground hover:underline"
-        >
-          + Thêm ý đánh số
-        </button>
+        {!disabled && (
+          <button
+            type="button"
+            onClick={onAddItem}
+            className="self-start text-sm text-muted-foreground hover:text-foreground hover:underline"
+          >
+            + Thêm ý đánh số
+          </button>
+        )}
       </div>
     </section>
   )

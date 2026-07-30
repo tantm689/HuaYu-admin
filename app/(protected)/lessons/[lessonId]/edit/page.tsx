@@ -20,6 +20,12 @@ import { DialogueLineBlock } from "@/components/dialogue-line-block"
 import { VocabRow } from "@/components/vocab-row"
 import type { LessonFullView } from "@/lib/db/getLessonFull"
 import { dialogueDisplayNames } from "@/lib/dialogueDisplayName"
+import type { TtsVoice } from "@/lib/tts/generateAudio"
+
+const VOICE_OPTIONS: { value: TtsVoice; label: string }[] = [
+  { value: "zh-TW-HsiaoChenNeural", label: "Hiểu Trân (nữ)" },
+  { value: "zh-TW-YunJheNeural", label: "Vân Triết (nam)" },
+]
 
 interface Props {
   params: Promise<{ lessonId: string }>
@@ -120,6 +126,11 @@ export default function LessonEditPage({ params }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
 
+  const [audioVoice, setAudioVoice] = useState<TtsVoice>(VOICE_OPTIONS[0].value)
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false)
+  const [audioActionError, setAudioActionError] = useState<string | null>(null)
+  const [regeneratingAudioId, setRegeneratingAudioId] = useState<string | null>(null)
+
   const load = useCallback(async () => {
     setIsLoading(true)
     setLoadError(null)
@@ -204,6 +215,74 @@ export default function LessonEditPage({ params }: Props) {
       setSaveError(err instanceof Error ? err.message : "Lưu thất bại.")
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  async function handleGenerateMissingAudio() {
+    setIsGeneratingAudio(true)
+    setAudioActionError(null)
+    try {
+      const res = await fetch(`/api/lessons/${lessonId}/audio`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voice: audioVoice, mode: "fill" }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? "Sinh audio thất bại.")
+      }
+      await load()
+    } catch (err) {
+      setAudioActionError(err instanceof Error ? err.message : "Sinh audio thất bại.")
+    } finally {
+      setIsGeneratingAudio(false)
+    }
+  }
+
+  async function handleRegenerateAllAudio() {
+    const confirmed = window.confirm(
+      "Sẽ ghi đè TOÀN BỘ audio đã có của mọi từ vựng trong bài (kể cả đã tạo lại riêng), tiếp tục?"
+    )
+    if (!confirmed) return
+
+    setIsGeneratingAudio(true)
+    setAudioActionError(null)
+    try {
+      const res = await fetch(`/api/lessons/${lessonId}/audio`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voice: audioVoice, mode: "regenerateAll" }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? "Sinh lại audio thất bại.")
+      }
+      await load()
+    } catch (err) {
+      setAudioActionError(err instanceof Error ? err.message : "Sinh lại audio thất bại.")
+    } finally {
+      setIsGeneratingAudio(false)
+    }
+  }
+
+  async function handleRegenerateOneAudio(vocabId: string) {
+    setRegeneratingAudioId(vocabId)
+    setAudioActionError(null)
+    try {
+      const res = await fetch(`/api/lessons/${lessonId}/audio`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: vocabId, voice: audioVoice }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? "Tạo lại audio thất bại.")
+      }
+      await load()
+    } catch (err) {
+      setAudioActionError(err instanceof Error ? err.message : "Tạo lại audio thất bại.")
+    } finally {
+      setRegeneratingAudioId(null)
     }
   }
 
@@ -1078,19 +1157,10 @@ export default function LessonEditPage({ params }: Props) {
     )
   }
 
-  if (data.status !== "draft") {
-    return (
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-10">
-        <p role="alert" className="text-sm text-destructive">
-          Bài học phải ở trạng thái Nháp mới được sửa. Vào trang bài học và bấm &quot;Chuyển về nháp&quot; trước.
-        </p>
-        <Button variant="outline" nativeButton={false} onClick={() => router.push(`/lessons/${lessonId}`)}>
-          Quay lại
-        </Button>
-      </main>
-    )
-  }
-
+  // The page is viewable at any status; every mutating control below is gated
+  // on draft instead, so a published lesson can be read (and its audio played)
+  // without first being sent back to draft.
+  const isEditable = data.status === "draft"
   const dialogueLabels = dialogueDisplayNames(data.dialogues)
 
   return (
@@ -1105,9 +1175,11 @@ export default function LessonEditPage({ params }: Props) {
           <Button variant="outline" nativeButton={false} onClick={() => router.push(`/lessons/${lessonId}`)}>
             Quay lại
           </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Đang lưu..." : "Lưu"}
-          </Button>
+          {isEditable && (
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? "Đang lưu..." : "Lưu"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1123,6 +1195,7 @@ export default function LessonEditPage({ params }: Props) {
               onChange={(titleZh) => updateLesson({ titleZh })}
               placeholder="Tiêu đề bài học (chữ Hán)"
               className="text-lg font-semibold text-foreground"
+              disabled={!isEditable}
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -1134,6 +1207,7 @@ export default function LessonEditPage({ params }: Props) {
               onChange={(titleVi) => updateLesson({ titleVi })}
               placeholder="Tiêu đề bài học (tiếng Việt)"
               className="text-lg font-semibold text-foreground"
+              disabled={!isEditable}
             />
           </div>
           <div className="flex flex-col gap-1 sm:col-span-2">
@@ -1145,6 +1219,7 @@ export default function LessonEditPage({ params }: Props) {
               onChange={(theme) => updateLesson({ theme: theme || null })}
               placeholder="Chủ đề của bài"
               className="text-base text-foreground/90"
+              disabled={!isEditable}
             />
           </div>
         </div>
@@ -1154,13 +1229,15 @@ export default function LessonEditPage({ params }: Props) {
             <Label className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
               Mục tiêu
             </Label>
-            <button
-              type="button"
-              onClick={addObjective}
-              className="text-sm text-muted-foreground hover:text-foreground hover:underline"
-            >
-              + Thêm mục tiêu
-            </button>
+            {isEditable && (
+              <button
+                type="button"
+                onClick={addObjective}
+                className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+              >
+                + Thêm mục tiêu
+              </button>
+            )}
           </div>
           <div className="flex flex-col divide-y divide-border/60">
             {data.objectives.map((objective, idx) => (
@@ -1172,16 +1249,19 @@ export default function LessonEditPage({ params }: Props) {
                   value={objective}
                   onChange={(v) => updateObjective(idx, v)}
                   className="text-base text-foreground/90"
+                  disabled={!isEditable}
                 />
-                <button
-                  type="button"
-                  onClick={() => removeObjective(idx)}
-                  aria-label="Xoá mục tiêu"
-                  data-danger
-                  className="rounded p-1 text-muted-foreground opacity-0 hover:bg-destructive/10 hover:text-destructive group-hover/objective:opacity-100"
-                >
-                  <Trash2 className="size-4" />
-                </button>
+                {isEditable && (
+                  <button
+                    type="button"
+                    onClick={() => removeObjective(idx)}
+                    aria-label="Xoá mục tiêu"
+                    data-danger
+                    className="rounded p-1 text-muted-foreground opacity-0 hover:bg-destructive/10 hover:text-destructive group-hover/objective:opacity-100"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                )}
               </div>
             ))}
             {data.objectives.length === 0 && (
@@ -1199,15 +1279,19 @@ export default function LessonEditPage({ params }: Props) {
             Từ vựng ({data.dialogues.reduce((sum, d) => sum + d.vocabulary.length, 0)})
           </TabsTab>
           <TabsTab value="grammar">Ngữ pháp ({data.grammarPoints.length})</TabsTab>
+          <TabsTab value="audio">Audio</TabsTab>
+          <TabsTab value="quiz">Quiz</TabsTab>
         </TabsList>
 
         <TabsPanel value="dialogues">
         <div className="rounded-lg border bg-card p-6">
         <div className="mb-4 flex items-center justify-between border-b pb-3">
           <h2 className="text-base font-semibold text-foreground">Bài khoá ({data.dialogues.length})</h2>
-          <Button type="button" variant="ghost" size="sm" onClick={addDialogue}>
-            + Thêm hội thoại
-          </Button>
+          {isEditable && (
+            <Button type="button" variant="ghost" size="sm" onClick={addDialogue}>
+              + Thêm hội thoại
+            </Button>
+          )}
         </div>
         <Accordion className="flex flex-col gap-3">
           {data.dialogues.map((dialogue, dIdx) => (
@@ -1226,6 +1310,7 @@ export default function LessonEditPage({ params }: Props) {
                       onChange={(v) => updateDialogue(dIdx, { audioCode: v || null })}
                       placeholder="—"
                       className="w-auto"
+                      disabled={!isEditable}
                     />
                   </div>
 
@@ -1253,28 +1338,33 @@ export default function LessonEditPage({ params }: Props) {
                         onMoveDown={() => moveDialogueLine(dIdx, lIdx, 1)}
                         canMoveUp={lIdx > 0}
                         canMoveDown={lIdx < dialogue.lines.length - 1}
+                        disabled={!isEditable}
                       />
                     ))}
-                    <button
-                      type="button"
-                      onClick={() => addDialogueLine(dIdx)}
-                      className="self-start pt-2 text-sm text-muted-foreground hover:text-foreground hover:underline"
-                    >
-                      + Thêm câu {dialogue.kind === "passage" ? "văn" : "thoại"}
-                    </button>
+                    {isEditable && (
+                      <button
+                        type="button"
+                        onClick={() => addDialogueLine(dIdx)}
+                        className="self-start pt-2 text-sm text-muted-foreground hover:text-foreground hover:underline"
+                      >
+                        + Thêm câu {dialogue.kind === "passage" ? "văn" : "thoại"}
+                      </button>
+                    )}
                   </div>
 
-                  <div className="flex justify-end">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive"
-                      onClick={() => removeDialogue(dIdx)}
-                    >
-                      Xoá {dialogue.kind === "passage" ? "đoạn văn" : "hội thoại"}
-                    </Button>
-                  </div>
+                  {isEditable && (
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() => removeDialogue(dIdx)}
+                      >
+                        Xoá {dialogue.kind === "passage" ? "đoạn văn" : "hội thoại"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </AccordionContent>
             </AccordionItem>
@@ -1308,19 +1398,22 @@ export default function LessonEditPage({ params }: Props) {
                     onMoveDown={() => moveVocab(dIdx, vIdx, 1)}
                     canMoveUp={vIdx > 0}
                     canMoveDown={vIdx < dialogue.vocabulary.length - 1}
+                    disabled={!isEditable}
                   />
                 ))}
                 {dialogue.vocabulary.length === 0 && (
                   <p className="text-xs text-muted-foreground">Chưa có từ mới nào.</p>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => addVocab(dIdx)}
-                className="mt-2 text-sm text-muted-foreground hover:text-foreground hover:underline"
-              >
-                + Thêm từ
-              </button>
+              {isEditable && (
+                <button
+                  type="button"
+                  onClick={() => addVocab(dIdx)}
+                  className="mt-2 text-sm text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  + Thêm từ
+                </button>
+              )}
             </div>
           ))}
           {data.dialogues.length === 0 && (
@@ -1333,9 +1426,11 @@ export default function LessonEditPage({ params }: Props) {
         <div className="rounded-lg border bg-card p-6">
         <div className="mb-4 flex items-center justify-between border-b pb-3">
           <h2 className="text-base font-semibold text-foreground">Ngữ pháp ({data.grammarPoints.length})</h2>
-          <Button type="button" variant="ghost" size="sm" onClick={addGrammar}>
-            + Thêm điểm ngữ pháp
-          </Button>
+          {isEditable && (
+            <Button type="button" variant="ghost" size="sm" onClick={addGrammar}>
+              + Thêm điểm ngữ pháp
+            </Button>
+          )}
         </div>
 
         <Accordion className="flex flex-col gap-3">
@@ -1345,13 +1440,15 @@ export default function LessonEditPage({ params }: Props) {
               value={point.id}
               className="group/point relative rounded-lg border bg-card px-4 transition-colors has-[>div>[data-danger]:hover]:border-destructive has-[>div>[data-danger]:hover]:bg-destructive/5"
             >
-              <div className="absolute top-3 right-3 z-10">
-                <BlockActions
-                  onRemove={() => removeGrammar(gIdx)}
-                  removeLabel="Xoá điểm ngữ pháp"
-                  className="group-hover/point:opacity-100"
-                />
-              </div>
+              {isEditable && (
+                <div className="absolute top-3 right-3 z-10">
+                  <BlockActions
+                    onRemove={() => removeGrammar(gIdx)}
+                    removeLabel="Xoá điểm ngữ pháp"
+                    className="group-hover/point:opacity-100"
+                  />
+                </div>
+              )}
 
               <AccordionTrigger className="pr-10">
                 <div className="w-full text-left">
@@ -1363,6 +1460,7 @@ export default function LessonEditPage({ params }: Props) {
                     onChange={(titleVi) => updateGrammar(gIdx, { titleVi: titleVi || null })}
                     placeholder="Tiêu đề điểm ngữ pháp"
                     className="text-xl font-bold text-foreground"
+                    disabled={!isEditable}
                   />
                 </div>
               </AccordionTrigger>
@@ -1398,15 +1496,18 @@ export default function LessonEditPage({ params }: Props) {
                         moveSectionItemExample(gIdx, secIdx, itemIdx, eIdx, dir)
                       }
                       onAddItemExample={(itemIdx) => addSectionItemExample(gIdx, secIdx, itemIdx)}
+                      disabled={!isEditable}
                     />
                   ))}
-                  <button
-                    type="button"
-                    onClick={() => addSection(gIdx)}
-                    className="self-start text-sm text-muted-foreground hover:text-foreground hover:underline"
-                  >
-                    + Thêm đề mục
-                  </button>
+                  {isEditable && (
+                    <button
+                      type="button"
+                      onClick={() => addSection(gIdx)}
+                      className="self-start text-sm text-muted-foreground hover:text-foreground hover:underline"
+                    >
+                      + Thêm đề mục
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1417,25 +1518,29 @@ export default function LessonEditPage({ params }: Props) {
                       key={sub.id}
                       className="group/sub relative rounded-md p-2 -m-2 transition-colors has-[>div>[data-danger]:hover]:bg-destructive/5 has-[>div>[data-danger]:hover]:outline-1 has-[>div>[data-danger]:hover]:outline-destructive/40"
                     >
-                      <div className="absolute top-2 right-2">
-                        <BlockActions
-                          onRemove={() => removeSubPoint(gIdx, spIdx)}
-                          removeLabel="Xoá đề mục con"
-                          className="group-hover/sub:opacity-100"
-                        />
-                      </div>
+                      {isEditable && (
+                        <div className="absolute top-2 right-2">
+                          <BlockActions
+                            onRemove={() => removeSubPoint(gIdx, spIdx)}
+                            removeLabel="Xoá đề mục con"
+                            className="group-hover/sub:opacity-100"
+                          />
+                        </div>
+                      )}
                       <div className="mb-3 flex items-baseline gap-2">
                         <EditableText
                           value={sub.label}
                           onChange={(label) => updateSubPoint(gIdx, spIdx, { label })}
                           placeholder="A"
                           className="w-10 shrink-0 text-lg font-bold text-foreground"
+                          disabled={!isEditable}
                         />
                         <EditableText
                           value={sub.titleVi ?? ""}
                           onChange={(titleVi) => updateSubPoint(gIdx, spIdx, { titleVi: titleVi || null })}
                           placeholder="Tiêu đề đề mục con"
                           className="text-lg font-semibold text-foreground"
+                          disabled={!isEditable}
                         />
                       </div>
                       <div className="flex flex-col gap-6 border-l-2 border-border/60 pl-4">
@@ -1480,28 +1585,33 @@ export default function LessonEditPage({ params }: Props) {
                             onAddItemExample={(itemIdx) =>
                               addSubPointSectionItemExample(gIdx, spIdx, secIdx, itemIdx)
                             }
+                            disabled={!isEditable}
                           />
                         ))}
-                        <button
-                          type="button"
-                          onClick={() => addSubPointSection(gIdx, spIdx)}
-                          className="self-start text-sm text-muted-foreground hover:text-foreground hover:underline"
-                        >
-                          + Thêm đề mục
-                        </button>
+                        {isEditable && (
+                          <button
+                            type="button"
+                            onClick={() => addSubPointSection(gIdx, spIdx)}
+                            className="self-start text-sm text-muted-foreground hover:text-foreground hover:underline"
+                          >
+                            + Thêm đề mục
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={() => addSubPoint(gIdx)}
-                className="mt-4 text-sm text-muted-foreground hover:text-foreground hover:underline"
-              >
-                + Thêm đề mục con (A/B/C...)
-              </button>
+              {isEditable && (
+                <button
+                  type="button"
+                  onClick={() => addSubPoint(gIdx)}
+                  className="mt-4 text-sm text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  + Thêm đề mục con (A/B/C...)
+                </button>
+              )}
               </AccordionContent>
             </AccordionItem>
           ))}
@@ -1510,6 +1620,81 @@ export default function LessonEditPage({ params }: Props) {
         {data.grammarPoints.length === 0 && (
           <p className="text-sm text-muted-foreground">Chưa có điểm ngữ pháp nào.</p>
         )}
+        </div>
+        </TabsPanel>
+
+        <TabsPanel value="audio">
+        <div className="flex flex-col gap-5 rounded-lg border bg-card p-6">
+          {isEditable && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/20 p-4">
+              <label className="text-sm font-medium text-foreground" htmlFor="audio-voice">
+                Giọng đọc
+              </label>
+              <select
+                id="audio-voice"
+                className="h-8 rounded-md border bg-background px-2 text-sm"
+                value={audioVoice}
+                onChange={(e) => setAudioVoice(e.target.value as TtsVoice)}
+                disabled={isGeneratingAudio}
+              >
+                {VOICE_OPTIONS.map((v) => (
+                  <option key={v.value} value={v.value}>
+                    {v.label}
+                  </option>
+                ))}
+              </select>
+              <Button type="button" onClick={handleGenerateMissingAudio} disabled={isGeneratingAudio}>
+                {isGeneratingAudio ? "Đang sinh..." : "Sinh audio còn thiếu"}
+              </Button>
+              <Button type="button" variant="outline" onClick={handleRegenerateAllAudio} disabled={isGeneratingAudio}>
+                Sinh lại toàn bộ
+              </Button>
+            </div>
+          )}
+
+          {audioActionError && <p className="text-sm text-destructive">{audioActionError}</p>}
+
+          {data.dialogues.map((dialogue, dIdx) => (
+            <div key={dialogue.id} className="rounded-xl border border-dashed p-4">
+              <p className="mb-2 text-sm font-semibold text-foreground">
+                {dialogueLabels[dIdx]} · Từ mới ({dialogue.vocabulary.length})
+              </p>
+              <div className="flex flex-col divide-y divide-border/60">
+                {dialogue.vocabulary.map((vocab) => (
+                  <div key={vocab.id} className="flex flex-col gap-2 py-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <p className="field-zh">{vocab.wordZh}</p>
+                      <p className="text-xs text-muted-foreground">{vocab.meaningVi}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      {vocab.audioUrl ? (
+                        <audio controls preload="none" src={vocab.audioUrl} className="h-8 max-w-[12rem]" />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Chưa có audio</span>
+                      )}
+                      {isEditable && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRegenerateOneAudio(vocab.id)}
+                          disabled={isGeneratingAudio || regeneratingAudioId === vocab.id}
+                        >
+                          {regeneratingAudioId === vocab.id ? "Đang tạo..." : "Tạo lại"}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {dialogue.vocabulary.length === 0 && (
+                  <p className="text-xs text-muted-foreground">Chưa có từ mới nào.</p>
+                )}
+              </div>
+            </div>
+          ))}
+          {data.dialogues.length === 0 && (
+            <p className="text-sm text-muted-foreground">Chưa có hội thoại/từ vựng nào.</p>
+          )}
         </div>
         </TabsPanel>
       </Tabs>
