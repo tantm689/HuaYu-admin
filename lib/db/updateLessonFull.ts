@@ -3,6 +3,18 @@ import { LessonFullUpdateSchema, type LessonFullUpdate } from '@/lib/db/lessonFu
 
 export class LessonNotEditableError extends Error {}
 
+// Shared guard for the audio/quiz mutation routes (and any other future
+// lesson-scoped mutation) - mirrors the inline check in updateLessonFull so
+// a lesson can only be mutated while it's still a draft.
+export async function requireLessonDraft(lessonId: string): Promise<void> {
+  const supabase = createServerSupabase()
+  const { data: lesson, error } = await supabase.from('lessons').select('status').eq('id', lessonId).single()
+  if (error || !lesson) throw new Error('Không tìm thấy bài học.')
+  if (lesson.status !== 'draft') {
+    throw new LessonNotEditableError('Bài học phải ở trạng thái Nháp mới được sửa. Hãy "Chuyển về nháp" trước.')
+  }
+}
+
 // Applies admin edits made after import directly onto the live tables.
 // Existing rows (id present) are UPDATEd in place so columns the editor
 // never shows - audio_url on dialogues/vocabulary - are left untouched.

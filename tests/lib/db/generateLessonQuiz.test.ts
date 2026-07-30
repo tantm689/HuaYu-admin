@@ -22,6 +22,10 @@ const selectEqMock = vi.fn()
 const updateMock = vi.fn()
 const deleteQuestionMock = vi.fn()
 
+// Controls what the update/delete `.select('id')` chain resolves to, so
+// tests can simulate a wrong-lesson mutation matching zero rows.
+let mutationMatchesRow = true
+
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabase: () => ({
     from: (table: string) => {
@@ -35,8 +39,19 @@ vi.mock('@/lib/supabase/server', () => ({
                   return Promise.resolve({ error: null })
                 } }
               }
-              deleteQuestionMock(id)
-              return Promise.resolve({ error: null })
+              return {
+                eq: (col2: string, lessonId: string) => {
+                  deleteQuestionMock(id, col2, lessonId)
+                  return {
+                    select: () => {
+                      return Promise.resolve({
+                        data: mutationMatchesRow ? [{ id }] : [],
+                        error: null,
+                      })
+                    },
+                  }
+                },
+              }
             },
           }),
           insert: (rows: any) => {
@@ -56,8 +71,19 @@ vi.mock('@/lib/supabase/server', () => ({
           }),
           update: (row: any) => ({
             eq: (_col: string, id: string) => {
-              updateMock(id, row)
-              return Promise.resolve({ error: null })
+              return {
+                eq: (col2: string, lessonId: string) => {
+                  updateMock(id, row, col2, lessonId)
+                  return {
+                    select: () => {
+                      return Promise.resolve({
+                        data: mutationMatchesRow ? [{ id }] : [],
+                        error: null,
+                      })
+                    },
+                  }
+                },
+              }
             },
           }),
         }
@@ -187,25 +213,52 @@ describe('getLessonQuizQuestions', () => {
 })
 
 describe('updateQuizQuestion', () => {
-  it('updates the payload of one question by id', async () => {
+  beforeEach(() => {
+    mutationMatchesRow = true
+  })
+
+  it('updates the payload of one question by id, scoped to lesson_id', async () => {
     updateMock.mockClear()
-    await updateQuizQuestion('q1', { prompt: 'new' })
-    expect(updateMock).toHaveBeenCalledWith('q1', { payload: { prompt: 'new' } })
+    await updateQuizQuestion('lesson-1', 'q1', { prompt: 'new' })
+    expect(updateMock).toHaveBeenCalledWith('q1', { payload: { prompt: 'new' } }, 'lesson_id', 'lesson-1')
+  })
+
+  it('throws when the question does not belong to the given lesson', async () => {
+    mutationMatchesRow = false
+    await expect(updateQuizQuestion('lesson-2', 'q1', { prompt: 'new' })).rejects.toThrow()
   })
 })
 
 describe('updateQuizQuestionOrder', () => {
-  it('updates the order of one question by id', async () => {
+  beforeEach(() => {
+    mutationMatchesRow = true
+  })
+
+  it('updates the order of one question by id, scoped to lesson_id', async () => {
     updateMock.mockClear()
-    await updateQuizQuestionOrder('q1', 3)
-    expect(updateMock).toHaveBeenCalledWith('q1', { order: 3 })
+    await updateQuizQuestionOrder('lesson-1', 'q1', 3)
+    expect(updateMock).toHaveBeenCalledWith('q1', { order: 3 }, 'lesson_id', 'lesson-1')
+  })
+
+  it('throws when the question does not belong to the given lesson', async () => {
+    mutationMatchesRow = false
+    await expect(updateQuizQuestionOrder('lesson-2', 'q1', 3)).rejects.toThrow()
   })
 })
 
 describe('deleteQuizQuestion', () => {
-  it('deletes one question by id', async () => {
+  beforeEach(() => {
+    mutationMatchesRow = true
+  })
+
+  it('deletes one question by id, scoped to lesson_id', async () => {
     deleteQuestionMock.mockClear()
-    await deleteQuizQuestion('q1')
-    expect(deleteQuestionMock).toHaveBeenCalledWith('q1')
+    await deleteQuizQuestion('lesson-1', 'q1')
+    expect(deleteQuestionMock).toHaveBeenCalledWith('q1', 'lesson_id', 'lesson-1')
+  })
+
+  it('throws when the question does not belong to the given lesson', async () => {
+    mutationMatchesRow = false
+    await expect(deleteQuizQuestion('lesson-2', 'q1')).rejects.toThrow()
   })
 })

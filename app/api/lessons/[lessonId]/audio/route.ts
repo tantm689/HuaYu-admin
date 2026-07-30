@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/supabase/requireAdmin'
 import { generateLessonAudio, regenerateAllLessonAudio, regenerateLessonAudioItem } from '@/lib/db/generateLessonAudio'
+import { requireLessonDraft, LessonNotEditableError } from '@/lib/db/updateLessonFull'
 import type { TtsVoice } from '@/lib/tts/generateAudio'
 
 // edge-tts talks raw WebSocket to Microsoft's TTS endpoint, which isn't
@@ -20,6 +21,7 @@ export async function POST(
   const mode = (body.mode as 'fill' | 'regenerateAll' | undefined) ?? 'fill'
 
   try {
+    await requireLessonDraft(lessonId)
     if (mode === 'regenerateAll') {
       await regenerateAllLessonAudio(lessonId, voice)
     } else {
@@ -27,6 +29,9 @@ export async function POST(
     }
     return NextResponse.json({ ok: true })
   } catch (err) {
+    if (err instanceof LessonNotEditableError) {
+      return NextResponse.json({ error: err.message }, { status: 400 })
+    }
     const message = err instanceof Error ? err.message : 'unknown audio generation error'
     return NextResponse.json({ error: message }, { status: 500 })
   }
@@ -39,7 +44,7 @@ export async function PATCH(
   const authorized = await requireAdmin(request)
   if (!authorized.authorized) return authorized.response
 
-  await params
+  const { lessonId } = await params
   const body = await request.json().catch(() => ({}))
   const { id, voice } = body as { id?: string; voice?: TtsVoice }
 
@@ -48,9 +53,13 @@ export async function PATCH(
   }
 
   try {
+    await requireLessonDraft(lessonId)
     await regenerateLessonAudioItem(id, voice)
     return NextResponse.json({ ok: true })
   } catch (err) {
+    if (err instanceof LessonNotEditableError) {
+      return NextResponse.json({ error: err.message }, { status: 400 })
+    }
     const message = err instanceof Error ? err.message : 'unknown audio regeneration error'
     return NextResponse.json({ error: message }, { status: 500 })
   }

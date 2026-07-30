@@ -168,24 +168,46 @@ export async function getLessonQuizQuestions(lessonId: string): Promise<QuizQues
 }
 
 // Updates one question's payload (admin hand-edit via the Quiz tab).
-export async function updateQuizQuestion(id: string, payload: unknown): Promise<void> {
+// Scoped to lessonId so a PATCH against one lesson's route can never touch
+// a question belonging to a different lesson - the `.select()` lets us
+// detect a zero-row match (wrong lesson) and fail loudly instead of the
+// silent no-op Supabase does by default on an update matching no rows.
+export async function updateQuizQuestion(lessonId: string, id: string, payload: unknown): Promise<void> {
   const supabase = createServerSupabase()
-  const { error } = await supabase.from('quiz_questions').update({ payload }).eq('id', id)
+  const { data, error } = await supabase
+    .from('quiz_questions')
+    .update({ payload })
+    .eq('id', id)
+    .eq('lesson_id', lessonId)
+    .select('id')
   if (error) throw new Error(error.message)
+  if (!data || data.length === 0) throw new Error('Không tìm thấy câu hỏi thuộc bài học này.')
 }
 
 // Updates one question's display order (used when reordering within a part
 // - `order` is its own column, not part of `payload`, since importJob.ts's
 // insert shape always split {part, type, order, ...payload} apart).
-export async function updateQuizQuestionOrder(id: string, order: number): Promise<void> {
+export async function updateQuizQuestionOrder(lessonId: string, id: string, order: number): Promise<void> {
   const supabase = createServerSupabase()
-  const { error } = await supabase.from('quiz_questions').update({ order }).eq('id', id)
+  const { data, error } = await supabase
+    .from('quiz_questions')
+    .update({ order })
+    .eq('id', id)
+    .eq('lesson_id', lessonId)
+    .select('id')
   if (error) throw new Error(error.message)
+  if (!data || data.length === 0) throw new Error('Không tìm thấy câu hỏi thuộc bài học này.')
 }
 
-// Deletes one question by id.
-export async function deleteQuizQuestion(id: string): Promise<void> {
+// Deletes one question by id, scoped to lessonId (see updateQuizQuestion).
+export async function deleteQuizQuestion(lessonId: string, id: string): Promise<void> {
   const supabase = createServerSupabase()
-  const { error } = await supabase.from('quiz_questions').delete().eq('id', id)
+  const { data, error } = await supabase
+    .from('quiz_questions')
+    .delete()
+    .eq('id', id)
+    .eq('lesson_id', lessonId)
+    .select('id')
   if (error) throw new Error(error.message)
+  if (!data || data.length === 0) throw new Error('Không tìm thấy câu hỏi thuộc bài học này.')
 }
