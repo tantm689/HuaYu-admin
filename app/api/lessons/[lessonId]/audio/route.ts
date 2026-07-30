@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/supabase/requireAdmin'
-import { generateLessonAudio, regenerateLessonAudioItem } from '@/lib/db/generateLessonAudio'
+import { generateLessonAudio, regenerateAllLessonAudio, regenerateLessonAudioItem } from '@/lib/db/generateLessonAudio'
 import type { TtsVoice } from '@/lib/tts/generateAudio'
 
 // edge-tts talks raw WebSocket to Microsoft's TTS endpoint, which isn't
@@ -17,9 +17,14 @@ export async function POST(
   const { lessonId } = await params
   const body = await request.json().catch(() => ({}))
   const voice = body.voice as TtsVoice | undefined
+  const mode = (body.mode as 'fill' | 'regenerateAll' | undefined) ?? 'fill'
 
   try {
-    await generateLessonAudio(lessonId, voice)
+    if (mode === 'regenerateAll') {
+      await regenerateAllLessonAudio(lessonId, voice)
+    } else {
+      await generateLessonAudio(lessonId, voice)
+    }
     return NextResponse.json({ ok: true })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown audio generation error'

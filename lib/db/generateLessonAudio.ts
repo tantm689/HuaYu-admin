@@ -91,6 +91,43 @@ export async function generateLessonAudio(lessonId: string, voice: TtsVoice = DE
   }
 }
 
+// Regenerates EVERY vocab word's audio in the lesson, overwriting any
+// existing audio_url - unlike generateLessonAudio (which only fills gaps),
+// this is for the admin's "Sinh lại toàn bộ" action when they want a full
+// redo (e.g. switching every word to a different voice at once).
+export async function regenerateAllLessonAudio(lessonId: string, voice: TtsVoice = DEFAULT_VOICE): Promise<void> {
+  const supabase = createServerSupabase()
+
+  const { data: dialogues, error: dialoguesError } = await supabase
+    .from('dialogues')
+    .select('id')
+    .eq('lesson_id', lessonId)
+  if (dialoguesError) throw new Error(dialoguesError.message)
+  const dialogueIds = (dialogues ?? []).map((d: { id: string }) => d.id)
+
+  const { data: vocabulary, error: vocabError } =
+    dialogueIds.length > 0
+      ? await supabase.from('vocabulary').select('id, word_zh').in('dialogue_id', dialogueIds)
+      : { data: [] as { id: string; word_zh: string }[], error: null }
+  if (vocabError) throw new Error(vocabError.message)
+
+  const pendingWork: (() => Promise<void>)[] = []
+
+  for (const vocab of vocabulary ?? []) {
+    pendingWork.push(async () => {
+      const audioUrl = await uploadAudio(supabase, 'vocab', vocab.id, vocab.word_zh, voice)
+      const { error } = await supabase.from('vocabulary').update({ audio_url: audioUrl }).eq('id', vocab.id)
+      if (error) throw new Error(error.message)
+    })
+  }
+
+  const outcomes = await runWithConcurrency(pendingWork, TTS_CONCURRENCY)
+  const failures = outcomes.filter((o): o is PromiseRejectedResult => o.status === 'rejected')
+  if (failures.length > 0) {
+    throw new Error(`Sinh lại audio thất bại cho ${failures.length}/${outcomes.length} mục. Các mục thành công đã được lưu, có thể thử lại.`)
+  }
+}
+
 // Regenerates the audio for a single vocab word already in the live DB,
 // identified by its real row id.
 export async function regenerateLessonAudioItem(itemId: string, voice: TtsVoice): Promise<void> {
