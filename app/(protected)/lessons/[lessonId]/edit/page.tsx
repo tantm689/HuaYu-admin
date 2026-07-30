@@ -1706,8 +1706,7 @@ export default function LessonEditPage({ params }: Props) {
           </TabsTab>
           <TabsTab value="grammar">Ngữ pháp ({data.grammarPoints.length})</TabsTab>
           <TabsTab value="audio">
-            Audio ({data.dialogues.reduce((sum, d) => sum + d.vocabulary.filter((v) => v.audioUrl).length, 0)}/
-            {data.dialogues.reduce((sum, d) => sum + d.vocabulary.length, 0)})
+            Audio ({data.dialogues.reduce((sum, d) => sum + d.vocabulary.filter((v) => v.audioUrl).length, 0)})
           </TabsTab>
           <TabsTab value="quiz">Quiz ({(quizQuestions ?? []).length})</TabsTab>
         </TabsList>
