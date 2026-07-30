@@ -1,5 +1,5 @@
 export type LessonStatus = 'draft' | 'reviewed' | 'published'
-export type JobStatus = 'pending' | 'reviewed' | 'audio_ready' | 'quiz_ready' | 'imported' | 'failed'
+export type JobStatus = 'pending' | 'reviewed' | 'imported' | 'failed'
 
 export interface Book {
   id: string

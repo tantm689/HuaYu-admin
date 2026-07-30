@@ -9,7 +9,6 @@ const {
   insertGrammarSectionMock,
   insertGrammarExampleMock,
   insertGrammarSubPointMock,
-  insertQuizQuestionsMock,
 } = vi.hoisted(() => ({
   insertLessonMock: vi.fn(),
   deleteLessonMock: vi.fn(),
@@ -19,13 +18,11 @@ const {
   insertGrammarSectionMock: vi.fn(),
   insertGrammarExampleMock: vi.fn(),
   insertGrammarSubPointMock: vi.fn(),
-  insertQuizQuestionsMock: vi.fn(),
 }))
 
-let jobStatus = 'audio_ready'
+let jobStatus = 'reviewed'
 let existingLessonId: string | null = null
 let grammarSectionCounter = 0
-let quizQuestionsFixture: any[] = []
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabase: () => ({
@@ -111,14 +108,6 @@ vi.mock('@/lib/supabase/server', () => ({
           },
         }
       }
-      if (table === 'quiz_questions') {
-        return {
-          insert: (rows: any) => {
-            insertQuizQuestionsMock(rows)
-            return Promise.resolve({ error: null })
-          },
-        }
-      }
       if (table === 'extraction_jobs') {
         return {
           select: () => ({ eq: () => ({ single: () => Promise.resolve({
@@ -145,7 +134,6 @@ vi.mock('@/lib/supabase/server', () => ({
                     }],
                   }],
                 }],
-                quizQuestions: quizQuestionsFixture,
               },
             },
             error: null,
@@ -177,17 +165,15 @@ import { importExtractionJob, JobAlreadyImportedError, JobNotReadyForImportError
 
 describe('importExtractionJob', () => {
   beforeEach(() => {
-    jobStatus = 'audio_ready'
+    jobStatus = 'reviewed'
     existingLessonId = null
     grammarSectionCounter = 0
-    quizQuestionsFixture = []
     insertLessonMock.mockClear()
     deleteLessonMock.mockClear()
     insertVocabularyMock.mockClear()
     insertGrammarSectionMock.mockClear()
     insertGrammarExampleMock.mockClear()
     insertGrammarSubPointMock.mockClear()
-    insertQuizQuestionsMock.mockClear()
     storageRemoveMock.mockClear()
     extractionJobsUpdateMock.mockClear()
   })
@@ -198,14 +184,13 @@ describe('importExtractionJob', () => {
     expect(insertLessonMock).not.toHaveBeenCalled()
   })
 
-  it('rejects importing a job that has not finished audio generation yet', async () => {
-    jobStatus = 'reviewed'
+  it('rejects importing a job that has not been reviewed yet', async () => {
+    jobStatus = 'pending'
     await expect(importExtractionJob('job-1')).rejects.toThrow(JobNotReadyForImportError)
     expect(insertLessonMock).not.toHaveBeenCalled()
   })
 
-  it('allows importing a job once quiz_ready', async () => {
-    jobStatus = 'quiz_ready'
+  it('allows importing a job once reviewed', async () => {
     const result = await importExtractionJob('job-1')
     expect(result.lessonId).toBe('lesson-1')
   })
@@ -261,62 +246,5 @@ describe('importExtractionJob', () => {
     expect(insertLessonMock).toHaveBeenCalledWith(
       expect.objectContaining({ book_id: 'book-1', lesson_no: 1 })
     )
-  })
-
-  it('inserts quiz questions from raw_json.quizQuestions into quiz_questions, tagged with the new lesson id', async () => {
-    jobStatus = 'quiz_ready'
-    quizQuestionsFixture = [
-      {
-        part: 1,
-        type: 'pinyin_choice',
-        order: 1,
-        prompt: '你好',
-        choices: ['a', 'b', 'c', 'd'],
-        correctIndex: 0,
-      },
-      {
-        part: 2,
-        type: 'matching',
-        order: 2,
-        pairs: [
-          { left: '你好', right: 'xin chào' },
-          { left: '再见', right: 'tạm biệt' },
-          { left: '谢谢', right: 'cảm ơn' },
-          { left: '对不起', right: 'xin lỗi' },
-          { left: '没关系', right: 'không sao' },
-        ],
-      },
-    ]
-
-    await importExtractionJob('job-1')
-
-    expect(insertQuizQuestionsMock).toHaveBeenCalledWith([
-      {
-        lesson_id: 'lesson-1',
-        part: 1,
-        type: 'pinyin_choice',
-        order: 1,
-        payload: {
-          prompt: '你好',
-          choices: ['a', 'b', 'c', 'd'],
-          correctIndex: 0,
-        },
-      },
-      {
-        lesson_id: 'lesson-1',
-        part: 2,
-        type: 'matching',
-        order: 2,
-        payload: {
-          pairs: [
-            { left: '你好', right: 'xin chào' },
-            { left: '再见', right: 'tạm biệt' },
-            { left: '谢谢', right: 'cảm ơn' },
-            { left: '对不起', right: 'xin lỗi' },
-            { left: '没关系', right: 'không sao' },
-          ],
-        },
-      },
-    ])
   })
 })

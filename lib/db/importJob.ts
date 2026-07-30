@@ -26,13 +26,14 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
     throw new JobAlreadyImportedError('Công việc này đã được nhập vào cơ sở dữ liệu rồi, không thể nhập lại.')
   }
 
-  // Import is reachable once audio has been generated (status 'audio_ready'
-  // or later). Scope 4 ("Sinh & duyệt Quiz") doesn't exist yet, so
-  // 'audio_ready' is allowed through directly rather than gating on
-  // 'quiz_ready' - otherwise no lesson could ship until that page exists.
-  if (job.status !== 'audio_ready' && job.status !== 'quiz_ready') {
+  // Import is reachable once text has been reviewed. Audio and Quiz are no
+  // longer steps in the job pipeline - they're generated later, on the
+  // imported lesson's own Audio/Quiz tabs (lib/db/generateLessonAudio.ts,
+  // lib/db/generateLessonQuiz.ts), which operate on real DB rows instead of
+  // a job's draft raw_json.
+  if (job.status !== 'reviewed') {
     throw new JobNotReadyForImportError(
-      'Công việc cần hoàn tất bước "Sinh & duyệt Audio" trước khi import vào cơ sở dữ liệu.'
+      'Công việc cần được duyệt (bấm "Lưu") trước khi import vào cơ sở dữ liệu.'
     )
   }
 
@@ -192,15 +193,6 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
       }
     }
 
-    if (result.quizQuestions.length > 0) {
-      const { error: quizError } = await supabase.from('quiz_questions').insert(
-        result.quizQuestions.map((q) => {
-          const { part, type, order, ...payload } = q
-          return { lesson_id: lesson.id, part, type, order, payload }
-        })
-      )
-      if (quizError) throw new Error(quizError.message)
-    }
   } catch (err) {
     // A partial import (lesson committed, some children inserted) can never
     // be retried cleanly - the unique (book_id, lesson_no) constraint blocks
