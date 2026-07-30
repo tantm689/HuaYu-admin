@@ -24,7 +24,7 @@ import {
 // inconsistent-across-books structural judgment - a silent quality drop
 // there would be far harder for the admin to catch than in quiz answers.
 const QUIZ_MODEL_PRIMARY = 'gemini-3.5-flash'
-const QUIZ_MODEL_FALLBACK = 'gemini-2.5-flash'
+const QUIZ_MODEL_FALLBACK = 'gemini-3-flash'
 
 function lessonDataText(result: ExtractionResult): string {
   return JSON.stringify({

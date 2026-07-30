@@ -121,7 +121,7 @@ describe('generateQuizPart1', () => {
     expect(usedFallbackModel).toBe(true)
     expect(generateContentMock).toHaveBeenCalledTimes(2)
     expect(generateContentMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ model: 'gemini-3.5-flash' }))
-    expect(generateContentMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ model: 'gemini-2.5-flash' }))
+    expect(generateContentMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ model: 'gemini-3-flash' }))
   })
 
   it('throws when both the primary and fallback model fail', async () => {
