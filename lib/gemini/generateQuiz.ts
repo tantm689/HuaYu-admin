@@ -59,6 +59,12 @@ Trả về đúng theo JSON schema đã cung cấp, không thêm giải thích n
 // see it turn true anymore.
 export type QuizGenerationResult<T> = { questions: T[]; usedFallbackModel: boolean }
 
+// Gemini has no client-side timeout of its own - a slow/stuck response on
+// their end would otherwise hang this call indefinitely. 60s comfortably
+// covers a normal ~30s generation while still failing fast instead of
+// leaving the admin staring at a spinner with no idea if it's still working.
+const GEMINI_TIMEOUT_MS = 60_000
+
 async function callGemini(
   prompt: string,
   dataText: string,
@@ -66,19 +72,28 @@ async function callGemini(
 ): Promise<unknown[]> {
   const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
 
-  const response = await client.models.generateContent({
-    model: QUIZ_MODEL,
-    contents: [
-      {
-        role: 'user',
-        parts: [{ text: `${prompt}\n\nDữ liệu bài học (JSON):\n${dataText}` }],
+  let response
+  try {
+    response = await client.models.generateContent({
+      model: QUIZ_MODEL,
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: `${prompt}\n\nDữ liệu bài học (JSON):\n${dataText}` }],
+        },
+      ],
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema,
+        abortSignal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
       },
-    ],
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema,
-    },
-  })
+    })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'TimeoutError') {
+      throw new Error(`Gemini không phản hồi sau ${GEMINI_TIMEOUT_MS / 1000}s, thử lại.`)
+    }
+    throw err
+  }
 
   const responseText = response.text
 

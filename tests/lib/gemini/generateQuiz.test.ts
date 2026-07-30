@@ -110,6 +110,20 @@ describe('generateQuizPart1', () => {
     expect(generateContentMock).toHaveBeenCalledWith(expect.objectContaining({ model: 'gemini-3.5-flash' }))
   })
 
+  it('passes an abortSignal so a hung Gemini call times out instead of hanging forever', async () => {
+    generateContentMock.mockResolvedValue({ text: JSON.stringify({ questions: fifteenPart1Questions() }) })
+    await generateQuizPart1(baseResult())
+    const config = generateContentMock.mock.calls[0][0].config
+    expect(config.abortSignal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('surfaces a clear message when the call times out', async () => {
+    const timeoutError = new Error('timed out')
+    timeoutError.name = 'TimeoutError'
+    generateContentMock.mockRejectedValue(timeoutError)
+    await expect(generateQuizPart1(baseResult())).rejects.toThrow(/không phản hồi sau/)
+  })
+
   it('throws when the model call fails, with no retry against a different model', async () => {
     generateContentMock.mockRejectedValue(new Error('service unavailable'))
     await expect(generateQuizPart1(baseResult())).rejects.toThrow('service unavailable')
