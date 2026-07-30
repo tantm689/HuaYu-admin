@@ -117,10 +117,20 @@ describe('generateQuizPart1', () => {
     expect(config.abortSignal).toBeInstanceOf(AbortSignal)
   })
 
-  it('surfaces a clear message when the call times out', async () => {
-    const timeoutError = new Error('timed out')
+  it('surfaces a clear message when AbortSignal.timeout() fires with its native TimeoutError name', async () => {
+    const timeoutError = new Error('The operation was aborted due to timeout')
     timeoutError.name = 'TimeoutError'
     generateContentMock.mockRejectedValue(timeoutError)
+    await expect(generateQuizPart1(baseResult())).rejects.toThrow(/không phản hồi sau/)
+  })
+
+  it('also surfaces a clear message when the SDK rewraps the abort as its own error name (observed in practice)', async () => {
+    // @google/genai doesn't reliably forward AbortSignal.timeout()'s
+    // TimeoutError name - it can rewrap the abort as its own client error
+    // with a generic "This operation was aborted" message instead.
+    const wrappedAbortError = new Error('This operation was aborted')
+    wrappedAbortError.name = 'APIUserAbortError'
+    generateContentMock.mockRejectedValue(wrappedAbortError)
     await expect(generateQuizPart1(baseResult())).rejects.toThrow(/không phản hồi sau/)
   })
 

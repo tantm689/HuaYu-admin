@@ -89,7 +89,12 @@ async function callGemini(
       },
     })
   } catch (err) {
-    if (err instanceof Error && err.name === 'TimeoutError') {
+    // The @google/genai SDK doesn't reliably preserve AbortSignal.timeout()'s
+    // TimeoutError name across its own internal error wrapping (observed:
+    // it surfaced as a generic "This operation was aborted" instead) - since
+    // this call has no other abort source, any abort-shaped error here can
+    // only be our own timeout firing.
+    if (err instanceof Error && /abort|timeout/i.test(err.name)) {
       throw new Error(`Gemini không phản hồi sau ${GEMINI_TIMEOUT_MS / 1000}s, thử lại.`)
     }
     throw err
