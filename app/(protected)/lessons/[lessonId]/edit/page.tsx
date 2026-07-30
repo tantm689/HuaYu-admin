@@ -573,28 +573,7 @@ export default function LessonEditPage({ params }: Props) {
     }
   }
 
-  async function handleGenerateMissingAudio() {
-    setIsGeneratingAudio(true)
-    setAudioActionError(null)
-    try {
-      const res = await fetch(`/api/lessons/${lessonId}/audio`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ voice: audioVoice, mode: "fill" }),
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error ?? "Sinh audio thất bại.")
-      }
-      await load()
-    } catch (err) {
-      setAudioActionError(err instanceof Error ? err.message : "Sinh audio thất bại.")
-    } finally {
-      setIsGeneratingAudio(false)
-    }
-  }
-
-  async function handleRegenerateAllAudio() {
+  async function handleGenerateAudio() {
     const confirmed = window.confirm(
       "Sẽ ghi đè TOÀN BỘ audio đã có của mọi từ vựng trong bài (kể cả đã tạo lại riêng), tiếp tục?"
     )
@@ -1726,8 +1705,11 @@ export default function LessonEditPage({ params }: Props) {
             Từ vựng ({data.dialogues.reduce((sum, d) => sum + d.vocabulary.length, 0)})
           </TabsTab>
           <TabsTab value="grammar">Ngữ pháp ({data.grammarPoints.length})</TabsTab>
-          <TabsTab value="audio">Audio</TabsTab>
-          <TabsTab value="quiz">Quiz</TabsTab>
+          <TabsTab value="audio">
+            Audio ({data.dialogues.reduce((sum, d) => sum + d.vocabulary.filter((v) => v.audioUrl).length, 0)}/
+            {data.dialogues.reduce((sum, d) => sum + d.vocabulary.length, 0)})
+          </TabsTab>
+          <TabsTab value="quiz">Quiz ({(quizQuestions ?? []).length})</TabsTab>
         </TabsList>
 
         <TabsPanel value="dialogues">
@@ -2090,11 +2072,8 @@ export default function LessonEditPage({ params }: Props) {
                   </option>
                 ))}
               </select>
-              <Button type="button" onClick={handleGenerateMissingAudio} disabled={isGeneratingAudio}>
-                {isGeneratingAudio ? "Đang sinh..." : "Sinh audio còn thiếu"}
-              </Button>
-              <Button type="button" variant="outline" onClick={handleRegenerateAllAudio} disabled={isGeneratingAudio}>
-                Sinh lại toàn bộ
+              <Button type="button" onClick={handleGenerateAudio} disabled={isGeneratingAudio}>
+                {isGeneratingAudio ? "Đang sinh..." : "Sinh audio"}
               </Button>
             </div>
           )}
