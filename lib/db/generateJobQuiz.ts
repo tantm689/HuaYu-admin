@@ -18,19 +18,21 @@ function requireQuizReady(status: string) {
   }
 }
 
+export type GenerateJobQuizResult = { quizQuestions: QuizQuestion[]; usedFallbackModel: boolean }
+
 // Generates a fresh Part 1 (15 questions: pinyin_choice/listening_choice/
 // tone_choice) from the job's reviewed content, overwriting only Part 1 of
 // any existing quiz draft - Part 2 (if already generated) is left untouched,
 // so a Part 2 failure/regenerate never has to redo Part 1. Only reachable
 // once audio has been generated ('audio_ready' or later), matching the
 // pipeline order: text -> audio -> quiz -> import.
-export async function generateJobQuizPart1(jobId: string): Promise<QuizQuestion[]> {
+export async function generateJobQuizPart1(jobId: string): Promise<GenerateJobQuizResult> {
   const supabase = createServerSupabase()
   const job = await loadJob(supabase, jobId)
   requireQuizReady(job.status)
 
   const result = ExtractionResultSchema.parse(job.raw_json)
-  const part1Questions = await generateQuizPart1(result)
+  const { questions: part1Questions, usedFallbackModel } = await generateQuizPart1(result)
   const existingPart2 = result.quizQuestions.filter((q) => q.part === 2)
   const quizQuestions = [...part1Questions, ...existingPart2]
 
@@ -41,19 +43,19 @@ export async function generateJobQuizPart1(jobId: string): Promise<QuizQuestion[
 
   if (updateError) throw new Error(updateError.message)
 
-  return quizQuestions
+  return { quizQuestions, usedFallbackModel }
 }
 
 // Generates a fresh Part 2 (15 questions: matching/fill_blank/sentence_order),
 // overwriting only Part 2 of any existing quiz draft - mirrors
 // generateJobQuizPart1 for Part 1.
-export async function generateJobQuizPart2(jobId: string): Promise<QuizQuestion[]> {
+export async function generateJobQuizPart2(jobId: string): Promise<GenerateJobQuizResult> {
   const supabase = createServerSupabase()
   const job = await loadJob(supabase, jobId)
   requireQuizReady(job.status)
 
   const result = ExtractionResultSchema.parse(job.raw_json)
-  const part2Questions = await generateQuizPart2(result)
+  const { questions: part2Questions, usedFallbackModel } = await generateQuizPart2(result)
   const existingPart1 = result.quizQuestions.filter((q) => q.part === 1)
   const quizQuestions = [...existingPart1, ...part2Questions]
 
@@ -64,7 +66,7 @@ export async function generateJobQuizPart2(jobId: string): Promise<QuizQuestion[
 
   if (updateError) throw new Error(updateError.message)
 
-  return quizQuestions
+  return { quizQuestions, usedFallbackModel }
 }
 
 // Saves admin-edited quiz questions into the job's raw_json and advances

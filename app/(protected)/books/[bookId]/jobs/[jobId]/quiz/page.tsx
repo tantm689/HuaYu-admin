@@ -284,6 +284,7 @@ export default function JobQuizPage({ params }: Props) {
   const [isSaving, setIsSaving] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [fallbackWarning, setFallbackWarning] = useState<string | null>(null)
 
   const loadJob = useCallback(async () => {
     setIsLoading(true)
@@ -323,14 +324,23 @@ export default function JobQuizPage({ params }: Props) {
 
     setGeneratingPart(part)
     setActionError(null)
+    setFallbackWarning(null)
     try {
       const res = await fetch(`/api/jobs/${jobId}/quiz?part=${part}`, { method: "POST" })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? `Sinh Phần ${part} thất bại.`)
       }
-      const { quizQuestions } = (await res.json()) as { quizQuestions: QuizQuestion[] }
+      const { quizQuestions, usedFallbackModel } = (await res.json()) as {
+        quizQuestions: QuizQuestion[]
+        usedFallbackModel: boolean
+      }
       setKeyedQuestions(quizQuestions.map((question) => ({ key: makeQuestionKey(), question })))
+      if (usedFallbackModel) {
+        setFallbackWarning(
+          `Phần ${part} vừa được sinh bằng model dự phòng (model chính lỗi/hết quota) — nên kiểm tra kỹ hơn bình thường trước khi lưu.`
+        )
+      }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : `Sinh Phần ${part} thất bại.`)
     } finally {
@@ -452,6 +462,11 @@ export default function JobQuizPage({ params }: Props) {
         </div>
 
         {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+        {fallbackWarning && (
+          <p className="rounded-md border border-status-warning/40 bg-status-warning-bg px-3 py-2 text-sm text-status-warning">
+            {fallbackWarning}
+          </p>
+        )}
 
         {keyedQuestions.length === 0 && generatingPart === null && (
           <p className="text-sm text-muted-foreground">

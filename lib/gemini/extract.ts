@@ -40,7 +40,7 @@ export async function extractLessonFromPdf(
   const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
 
   const response = await client.models.generateContent({
-    model: 'gemini-3.5-flash',
+    model: 'gemini-3.6-flash',
     contents: [
       {
         role: 'user',

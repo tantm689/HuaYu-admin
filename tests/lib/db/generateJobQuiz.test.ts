@@ -82,23 +82,30 @@ describe('generateJobQuizPart1', () => {
   })
 
   it('overwrites raw_json.quizQuestions with the generated part-1 questions', async () => {
-    generateQuizPart1Mock.mockResolvedValue(fifteenPart1Questions)
-    const questions = await generateJobQuizPart1('job-1')
-    expect(questions).toHaveLength(15)
+    generateQuizPart1Mock.mockResolvedValue({ questions: fifteenPart1Questions, usedFallbackModel: false })
+    const { quizQuestions, usedFallbackModel } = await generateJobQuizPart1('job-1')
+    expect(quizQuestions).toHaveLength(15)
     expect(rawJson.quizQuestions).toHaveLength(15)
+    expect(usedFallbackModel).toBe(false)
+  })
+
+  it('propagates usedFallbackModel true when the fallback model was used', async () => {
+    generateQuizPart1Mock.mockResolvedValue({ questions: fifteenPart1Questions, usedFallbackModel: true })
+    const { usedFallbackModel } = await generateJobQuizPart1('job-1')
+    expect(usedFallbackModel).toBe(true)
   })
 
   it('preserves existing part-2 questions when regenerating part 1', async () => {
     rawJson.quizQuestions = fifteenPart2Questions
-    generateQuizPart1Mock.mockResolvedValue(fifteenPart1Questions)
-    const questions = await generateJobQuizPart1('job-1')
-    expect(questions).toHaveLength(30)
-    expect(questions.filter((q) => q.part === 1)).toHaveLength(15)
-    expect(questions.filter((q) => q.part === 2)).toHaveLength(15)
+    generateQuizPart1Mock.mockResolvedValue({ questions: fifteenPart1Questions, usedFallbackModel: false })
+    const { quizQuestions } = await generateJobQuizPart1('job-1')
+    expect(quizQuestions).toHaveLength(30)
+    expect(quizQuestions.filter((q) => q.part === 1)).toHaveLength(15)
+    expect(quizQuestions.filter((q) => q.part === 2)).toHaveLength(15)
   })
 
   it('throws when the DB update fails, instead of silently succeeding', async () => {
-    generateQuizPart1Mock.mockResolvedValue(fifteenPart1Questions)
+    generateQuizPart1Mock.mockResolvedValue({ questions: fifteenPart1Questions, usedFallbackModel: false })
     updateError = { message: 'connection reset' }
     await expect(generateJobQuizPart1('job-1')).rejects.toThrow('connection reset')
   })
@@ -119,23 +126,24 @@ describe('generateJobQuizPart2', () => {
   })
 
   it('overwrites raw_json.quizQuestions with the generated part-2 questions', async () => {
-    generateQuizPart2Mock.mockResolvedValue(fifteenPart2Questions)
-    const questions = await generateJobQuizPart2('job-1')
-    expect(questions).toHaveLength(15)
+    generateQuizPart2Mock.mockResolvedValue({ questions: fifteenPart2Questions, usedFallbackModel: false })
+    const { quizQuestions, usedFallbackModel } = await generateJobQuizPart2('job-1')
+    expect(quizQuestions).toHaveLength(15)
     expect(rawJson.quizQuestions).toHaveLength(15)
+    expect(usedFallbackModel).toBe(false)
   })
 
   it('preserves existing part-1 questions when regenerating part 2', async () => {
     rawJson.quizQuestions = fifteenPart1Questions
-    generateQuizPart2Mock.mockResolvedValue(fifteenPart2Questions)
-    const questions = await generateJobQuizPart2('job-1')
-    expect(questions).toHaveLength(30)
-    expect(questions.filter((q) => q.part === 1)).toHaveLength(15)
-    expect(questions.filter((q) => q.part === 2)).toHaveLength(15)
+    generateQuizPart2Mock.mockResolvedValue({ questions: fifteenPart2Questions, usedFallbackModel: false })
+    const { quizQuestions } = await generateJobQuizPart2('job-1')
+    expect(quizQuestions).toHaveLength(30)
+    expect(quizQuestions.filter((q) => q.part === 1)).toHaveLength(15)
+    expect(quizQuestions.filter((q) => q.part === 2)).toHaveLength(15)
   })
 
   it('throws when the DB update fails, instead of silently succeeding', async () => {
-    generateQuizPart2Mock.mockResolvedValue(fifteenPart2Questions)
+    generateQuizPart2Mock.mockResolvedValue({ questions: fifteenPart2Questions, usedFallbackModel: false })
     updateError = { message: 'connection reset' }
     await expect(generateJobQuizPart2('job-1')).rejects.toThrow('connection reset')
   })

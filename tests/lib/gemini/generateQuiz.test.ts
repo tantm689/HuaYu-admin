@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const { generateContentMock } = vi.hoisted(() => ({ generateContentMock: vi.fn() }))
 
@@ -95,21 +95,48 @@ function baseResult(): ExtractionResult {
 }
 
 describe('generateQuizPart1', () => {
-  it('returns 15 validated part-1 questions parsed from the Gemini response', async () => {
+  beforeEach(() => {
+    generateContentMock.mockReset()
+  })
+
+  it('returns 15 validated part-1 questions parsed from the Gemini response, usedFallbackModel false on primary success', async () => {
     generateContentMock.mockResolvedValue({ text: JSON.stringify({ questions: fifteenPart1Questions() }) })
 
-    const questions = await generateQuizPart1(baseResult())
+    const { questions, usedFallbackModel } = await generateQuizPart1(baseResult())
 
     expect(questions).toHaveLength(15)
     expect(questions.every((q) => q.part === 1)).toBe(true)
+    expect(usedFallbackModel).toBe(false)
+    expect(generateContentMock).toHaveBeenCalledTimes(1)
+    expect(generateContentMock).toHaveBeenCalledWith(expect.objectContaining({ model: 'gemini-3.5-flash' }))
   })
 
-  it('throws when Gemini returns invalid JSON', async () => {
+  it('retries against the fallback model when the primary model throws, and reports usedFallbackModel true', async () => {
+    generateContentMock
+      .mockRejectedValueOnce(new Error('quota exceeded'))
+      .mockResolvedValueOnce({ text: JSON.stringify({ questions: fifteenPart1Questions() }) })
+
+    const { questions, usedFallbackModel } = await generateQuizPart1(baseResult())
+
+    expect(questions).toHaveLength(15)
+    expect(usedFallbackModel).toBe(true)
+    expect(generateContentMock).toHaveBeenCalledTimes(2)
+    expect(generateContentMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ model: 'gemini-3.5-flash' }))
+    expect(generateContentMock).toHaveBeenNthCalledWith(2, expect.objectContaining({ model: 'gemini-2.5-flash' }))
+  })
+
+  it('throws when both the primary and fallback model fail', async () => {
+    generateContentMock.mockRejectedValue(new Error('service unavailable'))
+    await expect(generateQuizPart1(baseResult())).rejects.toThrow('service unavailable')
+    expect(generateContentMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('throws when Gemini returns invalid JSON (from the fallback, after the primary also fails validation)', async () => {
     generateContentMock.mockResolvedValue({ text: 'not json' })
     await expect(generateQuizPart1(baseResult())).rejects.toThrow(/not valid JSON/)
   })
 
-  it('throws when the response fails schema validation', async () => {
+  it('throws when the response fails schema validation on both models', async () => {
     generateContentMock.mockResolvedValue({
       text: JSON.stringify({ questions: [{ part: 1, type: 'pinyin_choice', order: 1 }] }),
     })
@@ -123,13 +150,18 @@ describe('generateQuizPart1', () => {
 })
 
 describe('generateQuizPart2', () => {
+  beforeEach(() => {
+    generateContentMock.mockReset()
+  })
+
   it('returns 15 validated part-2 questions parsed from the Gemini response', async () => {
     generateContentMock.mockResolvedValue({ text: JSON.stringify({ questions: fifteenPart2Questions() }) })
 
-    const questions = await generateQuizPart2(baseResult())
+    const { questions, usedFallbackModel } = await generateQuizPart2(baseResult())
 
     expect(questions).toHaveLength(15)
     expect(questions.every((q) => q.part === 2)).toBe(true)
+    expect(usedFallbackModel).toBe(false)
   })
 
   it('throws when a sentence_order question has a non-permutation correctOrder', async () => {

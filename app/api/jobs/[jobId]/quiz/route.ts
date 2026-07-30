@@ -29,8 +29,9 @@ export async function POST(
   }
 
   try {
-    const quizQuestions = part === '1' ? await generateJobQuizPart1(jobId) : await generateJobQuizPart2(jobId)
-    return NextResponse.json({ quizQuestions })
+    const { quizQuestions, usedFallbackModel } =
+      part === '1' ? await generateJobQuizPart1(jobId) : await generateJobQuizPart2(jobId)
+    return NextResponse.json({ quizQuestions, usedFallbackModel })
   } catch (err) {
     if (err instanceof JobNotReadyForQuizError) {
       return NextResponse.json({ error: err.message }, { status: 400 })
