@@ -268,7 +268,7 @@ export default function TrimDialogueAudioPage({ params }: Props) {
           {dialogue.lines.map((line) => (
             <div
               key={line.id}
-              className={`flex items-center justify-between gap-3 rounded-lg border p-3 ${
+              className={`flex items-center justify-between gap-3 rounded-lg border bg-card p-3 ${
                 selectedLineId === line.id ? "border-primary" : ""
               }`}
             >
