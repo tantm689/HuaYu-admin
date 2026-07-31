@@ -1,7 +1,19 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireAdmin } from '@/lib/supabase/requireAdmin'
 import { requireLessonDraft, LessonNotEditableError } from '@/lib/db/updateLessonFull'
-import { updateDialogueLineTrims, type DialogueLineTrim } from '@/lib/db/trimDialogueLines'
+import { updateDialogueLineTrims } from '@/lib/db/trimDialogueLines'
+
+const TrimLineSchema = z
+  .object({
+    id: z.string().uuid(),
+    audioUrl: z.string().url(),
+    startTime: z.number().nonnegative(),
+    endTime: z.number().nonnegative(),
+  })
+  .refine((l) => l.endTime > l.startTime, { message: 'endTime must be greater than startTime' })
+
+const TrimBodySchema = z.object({ lines: z.array(TrimLineSchema) })
 
 export async function PATCH(
   request: Request,
@@ -12,11 +24,12 @@ export async function PATCH(
 
   const { lessonId } = await params
   const body = await request.json().catch(() => ({}))
-  const lines = body.lines as DialogueLineTrim[] | undefined
+  const result = TrimBodySchema.safeParse(body)
 
-  if (!Array.isArray(lines)) {
-    return NextResponse.json({ error: 'lines must be an array' }, { status: 400 })
+  if (!result.success) {
+    return NextResponse.json({ error: 'invalid request body' }, { status: 400 })
   }
+  const { lines } = result.data
 
   try {
     await requireLessonDraft(lessonId)

@@ -26,6 +26,7 @@ function makeRequest(body: unknown) {
 }
 
 const params = Promise.resolve({ lessonId: 'lesson-1', dialogueId: 'dlg-1' })
+const LINE_ID = '11111111-1111-4111-8111-111111111111'
 
 describe('PATCH /api/lessons/[lessonId]/dialogues/[dialogueId]/trim', () => {
   beforeEach(() => {
@@ -37,7 +38,7 @@ describe('PATCH /api/lessons/[lessonId]/dialogues/[dialogueId]/trim', () => {
 
   it('requires the lesson to be a draft, then updates the given lines', async () => {
     const body = {
-      lines: [{ id: 'line-1', audioUrl: 'https://x/a.wav', startTime: 1, endTime: 2 }],
+      lines: [{ id: LINE_ID, audioUrl: 'https://x/a.wav', startTime: 1, endTime: 2 }],
     }
     const res = await PATCH(makeRequest(body), { params })
     expect(res.status).toBe(200)
@@ -47,6 +48,21 @@ describe('PATCH /api/lessons/[lessonId]/dialogues/[dialogueId]/trim', () => {
 
   it('returns 400 when lines is missing or not an array', async () => {
     const res = await PATCH(makeRequest({}), { params })
+    expect(res.status).toBe(400)
+    expect(updateDialogueLineTrimsMock).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 when a line is missing a required field', async () => {
+    const res = await PATCH(makeRequest({ lines: [{ id: LINE_ID, audioUrl: 'https://x/a.wav', startTime: 1 }] }), { params })
+    expect(res.status).toBe(400)
+    expect(updateDialogueLineTrimsMock).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 when endTime is not greater than startTime', async () => {
+    const res = await PATCH(
+      makeRequest({ lines: [{ id: LINE_ID, audioUrl: 'https://x/a.wav', startTime: 2, endTime: 2 }] }),
+      { params }
+    )
     expect(res.status).toBe(400)
     expect(updateDialogueLineTrimsMock).not.toHaveBeenCalled()
   })
@@ -61,7 +77,10 @@ describe('PATCH /api/lessons/[lessonId]/dialogues/[dialogueId]/trim', () => {
 
   it('returns 500 on an unexpected error from the update function', async () => {
     updateDialogueLineTrimsMock.mockRejectedValue(new Error('connection reset'))
-    const res = await PATCH(makeRequest({ lines: [{ id: 'line-1', audioUrl: 'x', startTime: 0, endTime: 1 }] }), { params })
+    const res = await PATCH(
+      makeRequest({ lines: [{ id: LINE_ID, audioUrl: 'https://x/a.wav', startTime: 0, endTime: 1 }] }),
+      { params }
+    )
     expect(res.status).toBe(500)
   })
 })
