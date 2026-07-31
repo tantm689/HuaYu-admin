@@ -1,6 +1,7 @@
 "use client"
 
 import { use, useCallback, useEffect, useRef, useState } from "react"
+import Link from "next/link"
 import { Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -59,6 +60,8 @@ function emptyLine(order: number): DialogueLine {
     pinyin: null,
     translationVi: null,
     audioUrl: null,
+    startTime: null,
+    endTime: null,
   }
 }
 
@@ -1752,7 +1755,15 @@ export default function LessonEditPage({ params }: Props) {
                   </div>
 
                   {dialogue.audioUrl && (
-                    <audio controls preload="none" src={dialogue.audioUrl} className="h-8 w-full max-w-sm" />
+                    <div className="flex items-center gap-3">
+                      <audio controls preload="none" src={dialogue.audioUrl} className="h-8 w-full max-w-sm" />
+                      <Link
+                        href={`/lessons/${lessonId}/edit/dialogues/${dialogue.id}/trim`}
+                        className="text-sm whitespace-nowrap text-primary underline-offset-4 hover:underline"
+                      >
+                        Cắt audio hội thoại
+                      </Link>
+                    </div>
                   )}
 
                   <div className="flex flex-col gap-1 divide-y divide-border/60">
