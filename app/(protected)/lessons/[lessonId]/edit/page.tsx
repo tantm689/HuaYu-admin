@@ -1823,50 +1823,56 @@ export default function LessonEditPage({ params }: Props) {
         </TabsPanel>
 
         <TabsPanel value="vocabulary">
-        <div className="flex flex-col gap-5 rounded-lg border bg-card p-6">
+        <div className="rounded-lg border bg-card p-6">
+        <Accordion className="flex flex-col gap-3">
           {data.dialogues.map((dialogue, dIdx) => (
-            <div key={dialogue.id} className="rounded-xl border border-dashed p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <Label className="text-sm font-semibold text-foreground">
-                  {dialogueLabels[dIdx]} · Từ mới ({dialogue.vocabulary.length})
-                </Label>
-              </div>
-              <div className="flex flex-col divide-y divide-border/60">
-                {dialogue.vocabulary.map((vocab, vIdx) => (
-                  <VocabRow
-                    key={vocab.id}
-                    wordZh={vocab.wordZh}
-                    pinyin={vocab.pinyin}
-                    meaningVi={vocab.meaningVi}
-                    onChangeWordZh={(v) => updateVocab(dIdx, vIdx, { wordZh: v })}
-                    onChangePinyin={(v) => updateVocab(dIdx, vIdx, { pinyin: v })}
-                    onChangeMeaningVi={(v) => updateVocab(dIdx, vIdx, { meaningVi: v })}
-                    onRemove={() => removeVocab(dIdx, vIdx)}
-                    onMoveUp={() => moveVocab(dIdx, vIdx, -1)}
-                    onMoveDown={() => moveVocab(dIdx, vIdx, 1)}
-                    canMoveUp={vIdx > 0}
-                    canMoveDown={vIdx < dialogue.vocabulary.length - 1}
-                    disabled={!isEditable}
-                  />
-                ))}
-                {dialogue.vocabulary.length === 0 && (
-                  <p className="text-xs text-muted-foreground">Chưa có từ mới nào.</p>
+            <AccordionItem key={dialogue.id} value={dialogue.id} className="rounded-lg border bg-card px-4">
+              <AccordionTrigger className="pr-10">
+                <div className="w-full text-left">
+                  <p className="text-lg font-bold text-foreground">
+                    {dialogueLabels[dIdx]} · Từ mới ({dialogue.vocabulary.length})
+                  </p>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="flex flex-col divide-y divide-border/60">
+                  {dialogue.vocabulary.map((vocab, vIdx) => (
+                    <VocabRow
+                      key={vocab.id}
+                      wordZh={vocab.wordZh}
+                      pinyin={vocab.pinyin}
+                      meaningVi={vocab.meaningVi}
+                      onChangeWordZh={(v) => updateVocab(dIdx, vIdx, { wordZh: v })}
+                      onChangePinyin={(v) => updateVocab(dIdx, vIdx, { pinyin: v })}
+                      onChangeMeaningVi={(v) => updateVocab(dIdx, vIdx, { meaningVi: v })}
+                      onRemove={() => removeVocab(dIdx, vIdx)}
+                      onMoveUp={() => moveVocab(dIdx, vIdx, -1)}
+                      onMoveDown={() => moveVocab(dIdx, vIdx, 1)}
+                      canMoveUp={vIdx > 0}
+                      canMoveDown={vIdx < dialogue.vocabulary.length - 1}
+                      disabled={!isEditable}
+                    />
+                  ))}
+                  {dialogue.vocabulary.length === 0 && (
+                    <p className="text-xs text-muted-foreground">Chưa có từ mới nào.</p>
+                  )}
+                </div>
+                {isEditable && (
+                  <button
+                    type="button"
+                    onClick={() => addVocab(dIdx)}
+                    className="mt-2 pb-2 text-sm text-muted-foreground hover:text-foreground hover:underline"
+                  >
+                    + Thêm từ
+                  </button>
                 )}
-              </div>
-              {isEditable && (
-                <button
-                  type="button"
-                  onClick={() => addVocab(dIdx)}
-                  className="mt-2 text-sm text-muted-foreground hover:text-foreground hover:underline"
-                >
-                  + Thêm từ
-                </button>
-              )}
-            </div>
+              </AccordionContent>
+            </AccordionItem>
           ))}
-          {data.dialogues.length === 0 && (
-            <p className="text-sm text-muted-foreground">Chưa có hội thoại nào để thêm từ vựng.</p>
-          )}
+        </Accordion>
+        {data.dialogues.length === 0 && (
+          <p className="text-sm text-muted-foreground">Chưa có hội thoại nào để thêm từ vựng.</p>
+        )}
         </div>
         </TabsPanel>
 
