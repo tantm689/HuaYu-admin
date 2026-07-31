@@ -48,3 +48,4 @@ worktrees/
 *.log
 .claude/
 .superpowers/
+docs/
