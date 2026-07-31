@@ -2199,6 +2199,123 @@ If Gemini consistently misreads specific fields (e.g. zhuyin columns), note it �
 
 ---
 
+---
+
+## Task 15: Rework upload flow for client-side PDF slicing (Supabase free-tier 50MB limit)
+
+**Discovered during Task 14 manual verification:** Supabase's Free plan has a hard, non-negotiable 50MB per-file Storage limit (confirmed in the dashboard: Free = 50MB, Pro/Team = 500GB, no way to raise it on Free). The real textbook PDF is 339MB. The original design (Task 6: upload the whole book once to Storage, Task 8: download it server-side and slice per job) cannot work on this project's infrastructure. This task reworks the flow so the full book PDF is **never stored in Supabase at all** — only small, already-sliced per-lesson PDFs (a `pdf-lib` slice is done client-side, in the browser, before upload).
+
+**New flow:**
+1. "Tạo book" only collects `title`/`volume` metadata — no PDF upload, no Storage write. `books` no longer has a `pdf_path` column.
+2. On the "Tạo bài học mới" page, the admin picks the book's PDF **from their own computer** via a plain `<input type="file">` — it is never uploaded anywhere at this point. The browser reads it into an `ArrayBuffer` and renders page thumbnails directly from those local bytes with `pdfjs-dist` (`getDocument({ data: arrayBuffer })` — no signed URL, no server round-trip for thumbnails).
+3. When the admin confirms a page range + lesson number, the browser slices out exactly those pages **client-side**, in-browser, using the same `sliceBookPdf` function from `lib/pdf/slice.ts` (Task 4) — it's plain `pdf-lib`, which runs fine in a browser bundle, no changes needed to that function itself. The resulting small PDF (a handful of MB, safely under 50MB) is uploaded as part of the `POST /api/jobs` request; the full original file never leaves the browser.
+4. `extraction_jobs` gains a `sliced_pdf_path` column pointing at this small per-job file in the `book-pdfs` Storage bucket. The extraction runner (Task 8's route) now just downloads this small file directly and sends it to Gemini — it no longer downloads a book PDF or calls `sliceBookPdf` itself (slicing already happened client-side).
+5. The review UI (Task 9) renders PDF pages from the job's own `sliced_pdf_path` (via a new signed-URL endpoint scoped to the job) instead of from a book-level PDF — since the sliced file already contains only the selected pages, no `page_start`/`page_end` offset math is needed when rendering it; render every page of the sliced file.
+
+**Files:**
+- Create: `supabase/migrations/0002_client_side_slicing.sql` — `alter table books drop column pdf_path;` and `alter table extraction_jobs add column sliced_pdf_path text;` (nullable — the app always sets it when creating a job, but Postgres doesn't need a default since these are new/adding-only changes to a table that may already have rows from earlier manual testing).
+- Modify: `lib/db/types.ts` — remove `Book.pdf_path`, add `ExtractionJob.sliced_pdf_path: string | null`.
+- Modify: `app/api/books/route.ts` — accept a plain JSON body `{ title, volume }` (or a `FormData` without a `file` field — implementer's choice, but no Storage upload happens here anymore), insert into `books` without `pdf_path`.
+- Modify: `app/(protected)/books/new/page.tsx` — remove the file input entirely; just `title`/`volume` fields.
+- Delete: `app/api/books/[bookId]/pages/route.ts` — no longer needed (there is no book-level stored PDF to sign a URL for).
+- Create: `app/api/jobs/[jobId]/pdf/route.ts` — `GET`, returns `{ signedUrl }` for `extraction_jobs.sliced_pdf_path` (404 if the job or its `sliced_pdf_path` doesn't exist yet), mirroring the shape of the old `books/[bookId]/pages` route but scoped to a job. Uses Next.js 16 async `params`.
+- Modify: `app/api/jobs/route.ts` (`POST /api/jobs`) — change from a JSON-only body to `multipart/form-data` accepting `bookId`, `lessonNo`, `pageStart`, `pageEnd`, and `file` (the already-client-sliced small PDF). Insert the `extraction_jobs` row first (without `sliced_pdf_path`) to obtain its `id`, upload the file to the `book-pdfs` bucket at `jobs/${id}.pdf`, then update the row's `sliced_pdf_path` to that path, then return the final row with `status: 'pending'`. Update `tests/api/jobs.test.ts` to match the new multipart contract (still keep the `pageStart > pageEnd` validation test).
+- Modify: `app/(protected)/books/[bookId]/jobs/new/page.tsx` — replace the "fetch signed URL, load PDF from remote" logic with: local `<input type="file" accept="application/pdf">` → read to `ArrayBuffer` → `pdfjs-dist` renders thumbnails directly from those bytes (same UI/selection interaction already built in Task 7 — keep the anchor/focus range-selection state machine and visual design from that task, just change where the PDF bytes come from). On submit, call `sliceBookPdf` (import from `lib/pdf/slice.ts` — it's plain `pdf-lib`, works client-side) on the local bytes with the selected range, then `POST` the result as `multipart/form-data` to `/api/jobs` along with `bookId`/`lessonNo`/`pageStart`/`pageEnd`.
+- Modify: `app/api/jobs/[jobId]/run/route.ts` — remove the book-lookup and `sliceBookPdf` call entirely; instead download `extraction_jobs.sliced_pdf_path` directly from the `book-pdfs` bucket and pass those bytes straight to `extractLessonFromPdf(bytes, job.lesson_no)`. Update `tests/api/jobs-run.test.ts` to drop the `sliceBookPdf`/book-lookup mocks accordingly (keep the success/failure status-update assertions).
+- Modify: `app/(protected)/books/[bookId]/jobs/[jobId]/page.tsx` — left column now fetches the signed URL from the new `GET /api/jobs/[jobId]/pdf` route and renders every page of that small file (no `page_start`/`page_end` offset — the file already only contains the selected range).
+- Modify: `app/(protected)/books/[bookId]/page.tsx` — no functional change expected, but fix if it references anything from `books.pdf_path`.
+
+**Constraints carried over from earlier tasks (do not violate):**
+- Next.js 16 async route `params` pattern, consistently, in every route touched.
+- Keep using shadcn components / existing Vietnamese labels / existing visual patterns already established (this task is a plumbing change, not a redesign — no need to re-invoke `ui-ux-pro-max`, just adapt the existing page-range-picker and review-UI layouts to the new data source).
+- The live Supabase project already has the OLD schema applied (with `books.pdf_path` and no `sliced_pdf_path`) — the new migration `0002_client_side_slicing.sql` must be handed to the human operator to run in the Supabase SQL Editor the same way `0001_init.sql` was; the implementer cannot run it directly (no DB credentials/CLI access), but should still write it correctly and say so in the report.
+
+**Testing:** update/adapt every existing automated test that touches the changed files (`tests/api/books.test.ts`, `tests/api/jobs.test.ts`, `tests/api/jobs-run.test.ts`) so the full suite passes; add a test for the new `GET /api/jobs/[jobId]/pdf` route mirroring the pattern of the old `books/[bookId]/pages` route test if one existed, or a new simple one (job found → signed URL returned; job/path missing → 404). `npx tsc --noEmit` and `npm run build` must be clean at the end.
+
+---
+
+## Task 16: Fix Gemini extraction dropping vocabulary meaningVi/category
+
+**Discovered during Task 14 live verification against the real textbook and real Gemini API:** ran a real extraction job against Bài 1 (pages 27-45 of the actual PDF). Chữ Hán (`wordZh`), `pinyin`, and `zhuyin` came back 100% correct for all 43 vocabulary entries — but **`meaningVi` and `category` were `null` for every single entry**, even though the source pages clearly have a Vietnamese meaning column and category groupings ("Tên riêng", "Cụm từ", etc. — confirmed visually on the source PDF page for this exact lesson). Dialogues and grammar points extracted correctly with no similar gaps. This is a real, reproducible defect, not a one-off flake — it is systemic across all 43 entries in one real run.
+
+**Root cause (likely):** `lib/gemini/extract.ts`'s `EXTRACTION_PROMPT` tells Gemini what sections to extract (dialogues/vocabulary/grammar) but never explicitly says "capture the Vietnamese meaning and category for each vocabulary entry." `lib/gemini/schema.ts`'s `GEMINI_RESPONSE_SCHEMA` (the JSON Schema passed as `responseSchema` to steer structured output) has no `description` field on any property — Gemini's structured-output mode relies heavily on schema property descriptions to know what each field should actually contain; two fields with no description and no prompt mention are the most likely to be silently left null.
+
+**Fix:**
+1. In `lib/gemini/schema.ts`, add a `description` string to every property in `GEMINI_RESPONSE_SCHEMA`, especially (but not only) `vocabulary[].meaningVi` (e.g. "Nghĩa tiếng Việt của từ, lấy nguyên văn từ cột nghĩa trong bảng từ vựng — KHÔNG được để trống nếu sách có ghi nghĩa") and `vocabulary[].category` (e.g. "Tên nhóm từ vựng như in trong sách, ví dụ 'Tên riêng', 'Cụm từ', 'Danh từ' — lấy từ tiêu đề nhóm ngay phía trên trong bảng"). Add descriptions to the other fields too (`wordZh`, `pinyin`, `zhuyin`, dialogue fields, grammar fields) for consistency and to reduce the chance of a similar silent-drop bug elsewhere, even though those fields extracted correctly this run.
+2. In `lib/gemini/extract.ts`'s `EXTRACTION_PROMPT`, add an explicit line under the vocabulary instruction requiring every entry to include its Vietnamese meaning (`meaningVi`) and its category/group label (`category`) exactly as printed in the book, and to never leave `meaningVi` null if the book shows a meaning for that word.
+3. These are prompt/schema text changes only — no changes to `ExtractionResultSchema` (the Zod validator) or any TypeScript types, since `meaningVi`/`category` were always part of the shape, just not reliably populated by the model.
+
+**Testing:** the existing Vitest tests for `lib/gemini/schema.ts` and `lib/gemini/extract.ts` mock the Gemini SDK entirely, so they will still pass unchanged (this bug can't be caught by mocked unit tests — it's a live-model-behavior issue). No new automated test is expected to catch this category of bug; instead, after this fix lands, the human operator (with the orchestrating session) will re-run a real extraction against the same real lesson pages used to discover the bug and manually confirm `meaningVi`/`category` are now populated for all/most entries before considering Task 14 verification complete. Do still run `npx tsc --noEmit`, the full test suite, and `npm run build` to confirm nothing else broke.
+
+**Files:**
+- Modify: `lib/gemini/schema.ts` (add `description` to `GEMINI_RESPONSE_SCHEMA` properties)
+- Modify: `lib/gemini/extract.ts` (strengthen `EXTRACTION_PROMPT`)
+
+---
+
+## Task 17: Remove zhuyin (chú âm) field entirely
+
+**User request:** the zhuyin/bopomofo column is not used for anything and should be removed from the whole system — database, Gemini extraction, and every UI screen that shows it.
+
+**Scope:** `zhuyin` currently appears in: `supabase/migrations/0001_init.sql` (`vocabulary.zhuyin` column), `lib/db/types.ts` (`VocabularyEntry.zhuyin`), `lib/gemini/schema.ts` (`VocabularyEntrySchema.zhuyin` in the Zod schema, and the corresponding property + description in `GEMINI_RESPONSE_SCHEMA`), `lib/db/importJob.ts` (writes `zhuyin` into the `vocabulary` insert), `app/(protected)/books/[bookId]/jobs/[jobId]/page.tsx` (review-UI editable field for each vocab entry), `app/(protected)/lessons/[lessonId]/page.tsx` (read-only display in the published lesson view), `tests/lib/db/importJob.test.ts`, `tests/lib/gemini/schema.test.ts`.
+
+**Files:**
+- Create: `supabase/migrations/0004_remove_zhuyin.sql` — `alter table vocabulary drop column zhuyin;`. Same caveat as every prior migration: cannot be applied live from this environment (no DB CLI access), human operator must run it in the Supabase SQL Editor.
+- Modify: `lib/db/types.ts` — remove `zhuyin` from `VocabularyEntry`.
+- Modify: `lib/gemini/schema.ts` — remove `zhuyin` from `VocabularyEntrySchema` (Zod) and from `GEMINI_RESPONSE_SCHEMA`'s vocabulary item properties (including its `description`).
+- Modify: `lib/gemini/extract.ts` — if `EXTRACTION_PROMPT` mentions zhuyin/chú âm by name anywhere, remove that mention too (check the current text, added descriptions in Task 16 may reference it).
+- Modify: `lib/db/importJob.ts` — remove `zhuyin: vocab.zhuyin` (or equivalent) from the `vocabulary` insert payload.
+- Modify: `app/(protected)/books/[bookId]/jobs/[jobId]/page.tsx` — remove the zhuyin input field from the vocabulary edit form, and remove it from the local editable-state shape if one is hand-typed there.
+- Modify: `app/(protected)/lessons/[lessonId]/page.tsx` — remove the zhuyin display from the vocabulary list.
+- Update: `tests/lib/db/importJob.test.ts`, `tests/lib/gemini/schema.test.ts` — remove `zhuyin` from mock/sample data and any assertions that reference it.
+
+**Testing:** run `npx tsc --noEmit`, full `npm run test`, `npm run build`, `npm run lint` — all clean at the end. No new test is needed beyond updating the existing ones to no longer reference the removed field.
+
+---
+
+## Task 18: Remove category field from vocabulary entirely
+
+**User request:** after applying migrations 0003 (RLS) and 0004 (drop zhuyin) to the live database, the user reviewed the imported vocabulary data and also wants the `category` field removed entirely from `vocabulary` — same treatment as Task 17's zhuyin removal, same reasoning (not needed).
+
+**Scope:** `category` currently appears in: `supabase/migrations/0001_init.sql` (`vocabulary.category` column), `lib/db/types.ts` (`VocabularyEntry.category`), `lib/gemini/schema.ts` (`VocabularyEntrySchema.category` in the Zod schema, and the corresponding property + description in `GEMINI_RESPONSE_SCHEMA`), `lib/gemini/extract.ts` (the `EXTRACTION_PROMPT` explicitly instructs capturing category — this one, unlike zhuyin, IS mentioned in the prompt text and must be edited), `lib/db/importJob.ts` (writes `category` into the `vocabulary` insert), `app/(protected)/books/[bookId]/jobs/[jobId]/page.tsx` (review-UI editable field), `app/(protected)/lessons/[lessonId]/page.tsx` (read-only display), `tests/lib/db/importJob.test.ts`, `tests/lib/gemini/schema.test.ts`.
+
+**Files:**
+- Create: `supabase/migrations/0005_remove_category.sql` — `alter table vocabulary drop column category;`. Same caveat as every prior migration: cannot be applied live from this environment, human operator must run it.
+- Modify: `lib/db/types.ts` — remove `category` from `VocabularyEntry`.
+- Modify: `lib/gemini/schema.ts` — remove `category` from `VocabularyEntrySchema` (Zod) and from `GEMINI_RESPONSE_SCHEMA`'s vocabulary item properties (including its `description`).
+- Modify: `lib/gemini/extract.ts` — remove the `EXTRACTION_PROMPT` instruction requiring `category` per vocabulary entry (added in Task 16 — read the current prompt text first to find the exact line(s)).
+- Modify: `lib/db/importJob.ts` — remove `category: vocab.category` (or equivalent) from the `vocabulary` insert payload.
+- Modify: `app/(protected)/books/[bookId]/jobs/[jobId]/page.tsx` — remove the category input field from the vocabulary edit form, and from the local editable-state shape if hand-typed there.
+- Modify: `app/(protected)/lessons/[lessonId]/page.tsx` — remove the category display from the vocabulary list.
+- Update: `tests/lib/db/importJob.test.ts`, `tests/lib/gemini/schema.test.ts` — remove `category` from mock/sample data and any assertions referencing it.
+
+**Testing:** run `npx tsc --noEmit`, full `npm run test`, `npm run build`, `npm run lint` — all clean. After this task, an independent grep for `\bcategory\b` across `*.ts`/`*.tsx`/`*.sql` (excluding `node_modules`, `.superpowers/sdd/` task artifacts, and `docs/`) should return nothing.
+
+---
+
+## Task 19: Full UI design pass with ui-ux-pro-max across every screen
+
+**User feedback (from a real browser screenshot):** the app is functionally working (books list renders, real data loads) but visually it's bare/default-looking — plain black-on-white cards, no real design system. The project's standing preference is to invoke the `ui-ux-pro-max` skill for **all** UI work in this project, not just the visually-complex screens. Earlier tasks (6, 3, 12) explicitly skipped invoking it for "simple" screens (login, book list/new, audio upload) on the reasoning that they were low-complexity CRUD forms — that reasoning was wrong per the user's actual preference; every screen should get a real design pass.
+
+**Scope:** apply one cohesive design system (color palette, typography, spacing scale, component styling — chosen via `ui-ux-pro-max`) across every screen in the app, not each screen ad hoc with a different look. Screens to redesign:
+- `app/login/page.tsx`
+- `app/(protected)/layout.tsx` (the shared nav shell — this sets the tone for every other page)
+- `app/(protected)/books/page.tsx`
+- `app/(protected)/books/new/page.tsx`
+- `app/(protected)/books/[bookId]/page.tsx`
+- `app/(protected)/books/[bookId]/jobs/new/page.tsx` (already had a `ui-ux-pro-max` pass in Task 7 — refine/align it to the new shared design system rather than rebuilding from scratch, but do verify it still fits once the rest of the app has a real design language)
+- `app/(protected)/books/[bookId]/jobs/[jobId]/page.tsx` (same — had a pass in Task 9, align to the shared system)
+- `app/(protected)/books/[bookId]/audio/page.tsx`
+- `app/(protected)/lessons/[lessonId]/page.tsx` (had a pass in Task 13 — align to the shared system)
+
+**Process:** invoke the `ui-ux-pro-max` skill ONCE at the start to establish the shared design system (palette, typography, spacing, core component look for buttons/cards/inputs/badges), then apply that same system consistently across every screen above — this should read as one designed product, not nine independently-styled pages. Keep all existing Vietnamese labels and all existing functional behavior (form fields, buttons, interactions, state machines like the page-range picker's click-to-select) exactly as they are — this is a visual/styling pass only, not a UX or functionality change. Don't remove or rename any data-bearing element (input names, IDs used by tests, etc.) in a way that breaks existing tests.
+
+**Testing:** this is UI-only — no new business logic, so existing tests should mostly be unaffected. If any test does snapshot/DOM-structure assertions that break from styling changes (unlikely given this codebase's tests are mostly API/lib-level, not component-level), fix them to match the new structure without weakening what they verify. Run `npx tsc --noEmit`, full `npm run test`, `npm run build`, `npm run lint` — all clean at the end.
+
+**Note:** the app has no automated visual verification in this environment (no headless browser). The human operator will do a real browser click-through after this task lands and report back if anything looks wrong or broken.
+
+---
+
 ## Self-Review Notes
 
 - **Spec coverage:** upload/storage (Task 6), page-range extraction job creation (Task 7), slicing (Task 4), Gemini extraction restricted to dialogues/official-vocab/grammar-without-exercises (Task 5), review+edit UI (Task 9), import with duplicate `lesson_no` handled by the DB's `unique (book_id, lesson_no)` constraint surfacing as a Postgres error the import route returns as a 500 with message (admin sees it and can decide to edit `lessonNo` before retrying), vocabulary TTS (Task 11) wired non-blocking into import (Task 10), dialogue audio bulk upload matched by `audio_code` (Task 12), publish workflow (Task 13), single-admin auth (Task 3), Gemini model pinned to `gemini-3.5-flash-lite` (Task 5). All covered.
