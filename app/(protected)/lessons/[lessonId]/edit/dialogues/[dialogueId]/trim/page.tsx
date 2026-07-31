@@ -183,10 +183,9 @@ export default function TrimDialogueAudioPage({ params }: Props) {
         const renderedBuffer = await offlineContext.startRendering()
 
         const wavBlob = encodeAudioBufferAsWav(renderedBuffer)
-        const path = `dialogue-lines/${region.lineId}.wav`
         const uploadForm = new FormData()
         uploadForm.append("file", wavBlob, `${region.lineId}.wav`)
-        uploadForm.append("path", path)
+        uploadForm.append("lineId", region.lineId)
 
         const uploadRes = await fetch(
           `/api/lessons/${lessonId}/dialogues/${dialogueId}/trim/upload`,

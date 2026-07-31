@@ -13,11 +13,16 @@ export async function POST(
   const { lessonId } = await params
   const form = await request.formData()
   const file = form.get('file') as File | null
-  const path = form.get('path') as string | null
+  const lineId = form.get('lineId') as string | null
 
-  if (!file || !path) {
-    return NextResponse.json({ error: 'file and path are required' }, { status: 400 })
+  if (
+    !file ||
+    !lineId ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lineId)
+  ) {
+    return NextResponse.json({ error: 'file and a valid lineId are required' }, { status: 400 })
   }
+  const path = `dialogue-lines/${lineId}.wav`
 
   try {
     await requireLessonDraft(lessonId)
