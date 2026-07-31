@@ -70,11 +70,24 @@ describe('QuizQuestionSchema', () => {
       part: 2,
       type: 'fill_blank',
       order: 2,
+      contextSentence: '你今天要做什麼？',
       sentence: '我___去中國學習漢語。',
       choices: ['想', '在', '和', '把'],
       correctIndex: 0,
     })
     expect(result.success).toBe(true)
+  })
+
+  it('rejects a fill_blank question missing contextSentence', () => {
+    const result = QuizQuestionSchema.safeParse({
+      part: 2,
+      type: 'fill_blank',
+      order: 2,
+      sentence: '我___去中國學習漢語。',
+      choices: ['想', '在', '和', '把'],
+      correctIndex: 0,
+    })
+    expect(result.success).toBe(false)
   })
 
   it('accepts a valid sentence_order question', () => {

@@ -144,6 +144,7 @@ const fifteenPart2: any[] = Array.from({ length: 15 }, (_, i) => ({
   part: 2,
   type: 'fill_blank',
   order: i + 1,
+  contextSentence: 'x',
   sentence: 'y___z',
   choices: ['a', 'b', 'c', 'd'],
   correctIndex: 0,

@@ -31,7 +31,15 @@ function validQuestion(part: 1 | 2, type: string, order: number): QuizQuestion {
     return { part: 2, type: 'sentence_order', order, words: ['我', '喜歡', '吃', '中國菜'], correctOrder: [0, 1, 2, 3] }
   }
   if (type === 'fill_blank') {
-    return { part: 2, type: 'fill_blank', order, sentence: '我___去。', choices: ['想', '在', '和', '把'], correctIndex: 0 }
+    return {
+      part: 2,
+      type: 'fill_blank',
+      order,
+      contextSentence: '你今天要做什麼？',
+      sentence: '我___去。',
+      choices: ['想', '在', '和', '把'],
+      correctIndex: 0,
+    }
   }
   if (type === 'listening_choice') {
     return {
