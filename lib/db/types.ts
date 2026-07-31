@@ -41,6 +41,8 @@ export interface DialogueLine {
   pinyin: string | null
   translation_vi: string | null
   audio_url: string | null
+  start_time: number | null
+  end_time: number | null
 }
 
 export interface VocabularyEntry {

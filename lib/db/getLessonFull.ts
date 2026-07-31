@@ -54,6 +54,8 @@ export interface LessonFullView {
       pinyin: string | null
       translationVi: string | null
       audioUrl: string | null
+      startTime: number | null
+      endTime: number | null
     }[]
     vocabulary: {
       id: string
@@ -255,6 +257,8 @@ export async function getLessonFull(lessonId: string): Promise<LessonFullView | 
         pinyin: l.pinyin,
         translationVi: l.translation_vi,
         audioUrl: l.audio_url,
+        startTime: l.start_time,
+        endTime: l.end_time,
       })),
       vocabulary: (vocabByDialogue.get(d.id) ?? []).map((v) => ({
         id: v.id,
