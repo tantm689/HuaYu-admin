@@ -6,3 +6,5 @@ tài_liệu/
 .worktrees/
 worktrees/
 *.log
+.claude/
+.superpowers/
