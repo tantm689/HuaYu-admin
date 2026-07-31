@@ -1,0 +1,120 @@
+export type LessonStatus = 'draft' | 'published'
+export type JobStatus = 'pending' | 'reviewed' | 'imported' | 'failed'
+
+export interface Book {
+  id: string
+  title: string
+  volume: string | null
+  created_at: string
+}
+
+export interface Lesson {
+  id: string
+  book_id: string
+  lesson_no: number
+  title_zh: string
+  title_vi: string
+  theme: string | null
+  objectives: string[]
+  status: LessonStatus
+  created_at: string
+}
+
+export type DialogueKind = 'dialogue' | 'passage'
+
+export interface Dialogue {
+  id: string
+  lesson_id: string
+  order: number
+  kind: DialogueKind
+  audio_code: string | null
+  audio_url: string | null
+}
+
+export interface DialogueLine {
+  id: string
+  dialogue_id: string
+  order: number
+  speaker_zh: string | null
+  speaker_pinyin: string | null
+  text_zh: string
+  pinyin: string | null
+  translation_vi: string | null
+  audio_url: string | null
+  start_time: number | null
+  end_time: number | null
+}
+
+export interface VocabularyEntry {
+  id: string
+  dialogue_id: string
+  order: number
+  word_zh: string
+  pinyin: string | null
+  meaning_vi: string | null
+  audio_url: string | null
+}
+
+export interface GrammarPoint {
+  id: string
+  lesson_id: string
+  order: number
+  title_vi: string | null
+}
+
+export interface GrammarSubPoint {
+  id: string
+  grammar_point_id: string
+  order: number
+  label: string
+  title_vi: string | null
+}
+
+export interface GrammarSection {
+  id: string
+  grammar_point_id: string | null
+  grammar_sub_point_id: string | null
+  parent_section_id: string | null
+  order: number
+  label: string
+  content: string | null
+}
+
+export interface GrammarExample {
+  id: string
+  grammar_section_id: string
+  order: number
+  text_zh: string
+  pinyin: string | null
+  translation_vi: string | null
+}
+
+export interface ExtractionJob {
+  id: string
+  book_id: string
+  lesson_no: number
+  page_start: number
+  page_end: number
+  sliced_pdf_path: string | null
+  status: JobStatus
+  raw_json: unknown
+  error_message: string | null
+  created_at: string
+}
+
+export type QuizQuestionType =
+  | 'pinyin_choice'
+  | 'listening_choice'
+  | 'tone_choice'
+  | 'matching'
+  | 'fill_blank'
+  | 'sentence_order'
+
+export interface QuizQuestion {
+  id: string
+  lesson_id: string
+  part: 1 | 2
+  type: QuizQuestionType
+  order: number
+  payload: unknown
+}

@@ -1,0 +1,183 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-status-pending: var(--status-pending);
+  --color-status-pending-bg: var(--status-pending-bg);
+  --color-status-info: var(--status-info);
+  --color-status-info-bg: var(--status-info-bg);
+  --color-status-success: var(--status-success);
+  --color-status-success-bg: var(--status-success-bg);
+  --color-status-warning: var(--status-warning);
+  --color-status-warning-bg: var(--status-warning-bg);
+  --color-status-danger: var(--status-danger);
+  --color-status-danger-bg: var(--status-danger-bg);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* TaiwaneseEasy Admin design system — warm beige + soft navy, tuned for
+     long reading/editing sessions on a content-dense admin surface. */
+  --background: #f7f3ed;
+  --foreground: #1c2333;
+  --card: #ffffff;
+  --card-foreground: #1c2333;
+  --popover: #ffffff;
+  --popover-foreground: #1c2333;
+  --primary: #33456b;
+  --primary-foreground: #ffffff;
+  --secondary: #efe8db;
+  --secondary-foreground: #1c2333;
+  --muted: #efe8db;
+  --muted-foreground: #6b6456;
+  --accent: #eef1f6;
+  --accent-foreground: #33456b;
+  --destructive: #b3402f;
+  --border: #e5dfd3;
+  --input: #e5dfd3;
+  --ring: #33456b;
+  --chart-1: #33456b;
+  --chart-2: #6d88a8;
+  --chart-3: #6b8f6a;
+  --chart-4: #b8863f;
+  --chart-5: #6b6456;
+  --radius: 0.625rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1c2333;
+  --sidebar-primary: #33456b;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #efe8db;
+  --sidebar-accent-foreground: #1c2333;
+  --sidebar-border: #e5dfd3;
+  --sidebar-ring: #33456b;
+
+  /* Status semantics shared by job-status and publish-status badges. */
+  --status-pending: #6b6456;
+  --status-pending-bg: #efe8db;
+  --status-info: #33456b;
+  --status-info-bg: #eef1f6;
+  --status-success: #4a7048;
+  --status-success-bg: #eaf1e8;
+  --status-warning: #b8863f;
+  --status-warning-bg: #faf1e2;
+  --status-danger: #b3402f;
+  --status-danger-bg: #fbeae7;
+}
+
+.dark {
+  --background: #14192a;
+  --foreground: #efe8db;
+  --card: #1b2438;
+  --card-foreground: #efe8db;
+  --popover: #1b2438;
+  --popover-foreground: #efe8db;
+  --primary: #7e97bc;
+  --primary-foreground: #14192a;
+  --secondary: #232d47;
+  --secondary-foreground: #efe8db;
+  --muted: #232d47;
+  --muted-foreground: #a6a091;
+  --accent: #232d47;
+  --accent-foreground: #b9c8de;
+  --destructive: #e08b7a;
+  --border: #2a3552;
+  --input: #2a3552;
+  --ring: #7e97bc;
+  --chart-1: #7e97bc;
+  --chart-2: #a6bcd8;
+  --chart-3: #9bbd98;
+  --chart-4: #d9ac6c;
+  --chart-5: #a6a091;
+  --sidebar: #1b2438;
+  --sidebar-foreground: #efe8db;
+  --sidebar-primary: #7e97bc;
+  --sidebar-primary-foreground: #14192a;
+  --sidebar-accent: #232d47;
+  --sidebar-accent-foreground: #efe8db;
+  --sidebar-border: #2a3552;
+  --sidebar-ring: #7e97bc;
+
+  --status-pending: #a6a091;
+  --status-pending-bg: #232d47;
+  --status-info: #a6bcd8;
+  --status-info-bg: #232d47;
+  --status-success: #9bbd98;
+  --status-success-bg: #1e2e1c;
+  --status-warning: #d9ac6c;
+  --status-warning-bg: #332918;
+  --status-danger: #e08b7a;
+  --status-danger-bg: #331d18;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+@layer components {
+  /* Chinese-text input/textarea fields (textZh, wordZh, titleZh...) — larger
+     and bolder than regular form fields so admins can read/proofread Hanzi
+     without straining, across every editor screen. */
+  .field-zh {
+    @apply text-xl leading-snug font-semibold text-foreground;
+  }
+}
+
+@keyframes extraction-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
