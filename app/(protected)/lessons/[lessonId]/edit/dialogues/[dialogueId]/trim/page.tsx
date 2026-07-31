@@ -61,6 +61,7 @@ export default function TrimDialogueAudioPage({ params }: Props) {
     const regionsPlugin = RegionsPlugin.create()
     const wavesurfer = WaveSurfer.create({
       container: containerRef.current,
+      height: 128,
       waveColor: "#9ca3af",
       progressColor: "#1e3a5f",
       url: dialogue.audioUrl,
