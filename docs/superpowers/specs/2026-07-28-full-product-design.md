@@ -1,7 +1,7 @@
 # Thiết kế tổng thể: Admin CMS + User App (Đương Đại 1/2/3)
 
 Ngày: 2026-07-28
-Trạng thái: đã chốt hướng thiết kế, CHƯA triển khai code. Đây là tài liệu tham chiếu cho toàn bộ phần còn lại của dự án — bàn kỹ trước, tránh phải sửa schema/pipeline nhiều lần.
+Trạng thái: **ĐÃ LỖI THỜI Ở NHIỀU MỤC — cập nhật 2026-07-31.** Tài liệu này là bản thiết kế gốc (viết khi CHƯA có code). Từ đó tới nay, phần Admin CMS đã triển khai xong và trải qua nhiều lần đổi hướng thiết kế — mục 3.3/3.4/5/8/10 KHÔNG còn đúng với code thật, xem ghi chú "❌ ĐÃ ĐỔI" cắm ngay dưới mỗi mục bị ảnh hưởng. Tài liệu thẩm quyền hiện tại cho pipeline/Audio/Quiz là `docs/superpowers/specs/2026-07-30-lesson-scoped-audio-quiz-design.md`. Các mục 1/2/4/6/7/9 vẫn còn đúng hướng (chưa triển khai code phần User app nên chưa có gì mâu thuẫn).
 
 Bối cảnh: nội dung sách gốc (`tài_liệu/Giáo trình tiếng Trung đương đại SGK 1.pdf`, 409 trang) đã được đọc trực tiếp (nhiều bài rải khắp sách: Bài 1, 5, 6, 8, 12) để đối chiếu cấu trúc thật với hệ thống đang có, thay vì suy đoán qua ảnh chụp màn hình như trước đây.
 
@@ -60,16 +60,30 @@ Tự đánh giá (checklist %)
 - Cần cho: Shadowing chế độ karaoke (dừng từng câu), audio gợi ý trong bài Gõ câu phản xạ
 
 ### 3.3 `grammar_points` / `grammar_sub_points` — giữ nguyên `structure_note`
+
+**❌ ĐÃ ĐỔI (migration `0012_grammar_sections.sql`).** `structure_note` bị xoá hẳn, thay bằng bảng `grammar_sections` riêng (mỗi section có `label` + `content` text + `parent_section_id` để lồng nhau) — không còn nhồi hết Chức năng/Cấu trúc/Khẳng định/Phủ định/Câu hỏi/Cách dùng vào 1 field text tự do. Lý do ghi trong migration: 1 chuỗi `structure_note` cộng danh sách example gắn nhãn phẳng (`example_type`) không đại diện được các mục như "Chức năng"/"Cách dùng" (không phải khẳng định/phủ định/câu hỏi) mà mỗi mục lại có ví dụ riêng của nó — cần cấu trúc lồng thật sự, không phải text tự do.
+
+~~Nội dung mục 3.3 gốc bên dưới không còn áp dụng, giữ lại để tham khảo lịch sử:~~
 - KHÔNG tách thành field riêng (function/structure/usageNote) vì nhãn sách không cố định qua 3 quyển
 - `structure_note` vẫn là 1 field text tự do; Gemini PHẢI giữ nguyên nhãn gốc của sách trong text (ví dụ "Chức năng: ...\n\nCấu trúc:\nKhẳng định: ...\nPhủ định: ...\nCâu hỏi: ...\n\nCách dùng: ..."), xuống dòng rõ ràng giữa các phần — không tự tóm gọn/xoá nhãn
 - Đây là thay đổi PROMPT, không phải thay đổi schema
 
 ### 3.4 `grammar_examples` — thêm 2 field
+
+**❌ ĐÃ ĐỔI (migration `0012` rồi `0018_drop_grammar_example_audio.sql`).**
+- `example_type`: bị xoá cùng lúc với `structure_note` (migration 0012) — thay bằng `grammar_sections`, `grammar_examples` giờ gắn với `grammar_section_id` thay vì `grammar_point_id`/`grammar_sub_point_id` trực tiếp.
+- `audio_url`: từng được thêm (migration 0011), sau đó bị xoá hẳn (migration 0018). Nguyên văn lý do trong migration: "Gõ câu" (luyện gõ phản xạ ở app User, mục 4.6) đã bị thu hẹp phạm vi chỉ dùng câu hội thoại thật (`dialogue_lines.audio_url`, ghi âm thật, không phải TTS) — câu ví dụ ngữ pháp không bao giờ dùng cho luyện gõ, nên không còn lý do sinh/lưu audio cho chúng.
+
+~~Nội dung mục 3.4 gốc bên dưới không còn áp dụng, giữ lại để tham khảo lịch sử:~~
 - `audio_url` — sinh bằng TTS (không phải audio thật, sách không có audio cho câu ví dụ ngữ pháp)
 - `example_type` — enum `'default' | 'negative' | 'question'`, mặc định `'default'`. Áp dụng cho examples ở cả `grammar_point_id` lẫn `grammar_sub_point_id`.
   - Lý do: sách thường chia ví dụ theo Khẳng định/Phủ định/Câu hỏi (rõ nhất ở quyển 1-2, xác nhận qua Bài 1/8/12), đây là kỹ năng thực hành cốt lõi khi học ngoại ngữ (biết chuyển câu sang phủ định/nghi vấn), không phải chi tiết phụ đáng bỏ qua
 
 ### 3.5 Bảng Quiz mới — `quiz_questions`
+
+**Đã triển khai (migration `0019_quiz_questions.sql`), có thêm 1 cột so với bản phác thảo ban đầu ở mục 8.** Shape thật: `id, lesson_id, part (1|2), type, order, payload jsonb`. Cột `part` chia 15 câu Phần 1 (nhận biết từ vựng/phát âm) và 15 câu Phần 2 (vận dụng câu/ngữ pháp) — sinh qua 2 lệnh gọi Gemini riêng, xem `docs/superpowers/specs/2026-07-30-lesson-scoped-audio-quiz-design.md`.
+
+~~Nội dung mục 3.5 gốc bên dưới, giữ lại để tham khảo lịch sử:~~
 - Gắn với `lesson_id` (không tách theo dialogue/grammar_point — 1 bộ quiz tổng hợp cho cả bài)
 - Mỗi câu hỏi có `type` (1 trong 6 dạng đợt 1, xem mục 5), nội dung câu hỏi, các lựa chọn, đáp án đúng
 - Cấu trúc field cụ thể: CHƯA thiết kế chi tiết (để lúc viết migration thật)
@@ -140,25 +154,26 @@ Chấm điểm: so khớp chính xác với đáp án đã sinh sẵn, không c�
 
 Cả 2 tab: dùng ô input text thường, dựa vào IME hệ điều hành có sẵn (không tự xây bộ gõ pinyin→Hán). Chấm: so khớp CHÍNH XÁC với câu/từ gốc — không chấp nhận từ đồng nghĩa khác, không dùng AI chấm (để đảm bảo ôn đúng kiến thức/cấu trúc đang học trong bài, không phải câu bất kỳ cùng nghĩa).
 
-## 5. Pipeline Extraction Job (Admin) — 5 bước, thay pipeline 3 bước cũ
+## 5. Pipeline Extraction Job (Admin)
 
+**❌ ĐÃ ĐỔI HOÀN TOÀN (2026-07-30, xem `docs/superpowers/specs/2026-07-30-lesson-scoped-audio-quiz-design.md`).** Bản 5 bước dưới đây từng được code thật (migration `0011` từng thêm `audio_ready`/`quiz_ready` vào `extraction_jobs.status`) nhưng sau đó bị đảo ngược — nhận ra Audio/Quiz không cần "chặn" trong pipeline job vì chúng chỉ phụ thuộc dữ liệu bài khoá/từ vựng/ngữ pháp đã duyệt, một khi đã Import vào DB thật thì có thể sinh Audio/Quiz trực tiếp trên dữ liệu thật, không cần giữ job "sống" thêm 2 bước.
+
+**Pipeline thật hiện tại (3 trạng thái + `failed`):**
 ```
-1. pending      → Gemini đọc PDF → JSON (dialogues+vocab+grammar), CHƯA sinh audio/quiz
-2. reviewed     → Admin sửa text (hội thoại/từ vựng/ngữ pháp), bấm Duyệt
-3. (mới)        → trang riêng "Sinh & duyệt Audio": tự động gọi TTS cho vocab +
-                  grammar_examples (dựa trên text ĐÃ DUYỆT ở bước 2, nên luôn khớp),
-                  admin nghe thử/bấm tạo lại từng audio nếu không ưng.
-                  Audio hội thoại (dialogue_lines) dùng waveform trimmer riêng (mục 7),
-                  không phải TTS.
-4. (mới)        → trang riêng "Sinh & duyệt Quiz": Gemini sinh 6 dạng câu hỏi dựa
-                  trên vocab+grammar đã duyệt, admin xem/sửa từng câu hỏi
-5. imported     → Import: chỉ ghi tất cả (text+audio+quiz đã duyệt) vào DB,
-                  KHÔNG sinh gì thêm ở bước này nữa
+1. pending   → Gemini đọc PDF → JSON (dialogues+vocab+grammar)
+2. reviewed  → Admin sửa text, bấm "Lưu"
+3. imported  → Import ngay khi status = reviewed → ghi lesson/dialogues/
+               vocabulary/grammar vào DB thật, KHÔNG còn insert quiz_questions
+               ở bước này nữa (audio/quiz sinh sau, xem dưới)
+   (failed)  → lỗi trích xuất, giữ nguyên như thiết kế cũ
 ```
 
-**Lý do tách 5 bước thay vì sinh audio/quiz ngay lúc extract (bước 1):** nếu sinh audio/quiz dựa trên text CHƯA sửa, khi admin sửa text ở bước 2 thì audio/quiz cũ sẽ lệch khỏi nội dung đã sửa — không có cách tự động phát hiện "câu nào đổi thì sinh lại đúng câu đó" mà không phức tạp hoá logic. Tách hẳn 2 bước audio/quiz thành 2 trang riêng sau khi text đã ổn định, đơn giản và chắc chắn không bị lệch.
+**Audio và Quiz giờ là 2 tab trên trang Sửa bài học** (`/lessons/[lessonId]/edit`, tab "Audio" và "Quiz"), không còn là 2 trang riêng trong pipeline job:
+- Tab Audio: sinh TTS cho từ vựng (nút "Sinh audio", ghi đè toàn bộ có xác nhận trước) — audio hội thoại thật (dialogue_lines) vẫn chờ waveform trimmer (mục 6, chưa xây)
+- Tab Quiz: Gemini sinh 2 phần (15 câu/phần, part 1 = nhận biết từ vựng/phát âm, part 2 = vận dụng câu/ngữ pháp), admin sửa/xoá/sắp xếp lại từng câu, lưu thẳng vào DB ngay khi sửa (không có bước "Lưu" riêng cho quiz)
+- Cả 2 tab chỉ sinh/sửa được khi bài học ở trạng thái `draft`; `published` thì chỉ xem
 
-**Trạng thái `extraction_jobs.status` cần bổ sung** (chưa chốt tên cụ thể, để lúc viết migration): cần thêm ít nhất 2 trạng thái trung gian giữa `reviewed` và `imported` để phản ánh 2 bước mới (đang sinh/duyệt audio, đang sinh/duyệt quiz).
+**Lý do tách 5 bước gốc (KHÔNG CÒN ÁP DỤNG, giữ lại để hiểu bối cảnh lịch sử):** nếu sinh audio/quiz dựa trên text CHƯA sửa, khi admin sửa text sau đó thì audio/quiz cũ sẽ lệch khỏi nội dung đã sửa. Giải pháp thật sự chọn không phải "tách 2 bước riêng trong pipeline job" mà là "sinh Audio/Quiz SAU KHI đã Import — trên dữ liệu bài học thật, admin có thể sinh lại bất cứ lúc nào miễn còn ở draft" — đơn giản hơn nhiều so với cố gắng đồng bộ raw_json qua 2 bước trung gian.
 
 ## 6. Waveform trimmer (tính năng Admin mới)
 
@@ -179,9 +194,11 @@ Trang cắt audio hội thoại gốc thành từng dòng thoại:
 ## 8. Quyết định bổ sung (chốt ngày 2026-07-28, sau khi soạn bản đầu tài liệu này)
 
 - **Trạng thái `extraction_jobs.status` mới**: `pending → reviewed → audio_ready → quiz_ready → imported` (+ `failed` giữ nguyên như cũ).
+  **❌ ĐÃ ĐỔI — bị đảo ngược lại 2026-07-30.** Pipeline thật hiện tại chỉ còn `pending → reviewed → imported` (+ `failed`), xem mục 5 đã cập nhật ở trên.
 - **`quiz_questions` schema**: `id, lesson_id, type, order, payload jsonb`. Cột cố định tối thiểu (id/lesson_id/type/order), toàn bộ nội dung câu hỏi/đáp án của từng dạng nằm trong `payload` (jsonb) — shape khác nhau tuỳ `type` (ví dụ trắc nghiệm: `{question, choices[], correctIndex}`; sắp xếp từ: `{words[], correctOrder[]}`). Cho phép thêm dạng câu hỏi mới (đợt 2) sau này mà không cần migration.
-- **Waveform trimmer**: thư viện/kỹ thuật cụ thể (khả năng cao `wavesurfer.js` cho waveform+trim trên web) sẽ quyết định lúc thực sự bắt tay code scope đó, không chốt trước.
-- **Danh sách bài học User app**: nhóm theo quyển (`books`) — người dùng chọn quyển (Đương Đại 1/2/3) trước, rồi thấy danh sách bài của quyển đó. Khớp với model `lessons.book_id` đã có sẵn.
+  **Cập nhật nhỏ:** shape thật (migration `0019`) có thêm cột `part` (1|2) so với phác thảo này — xem mục 3.5 đã cập nhật.
+- **Waveform trimmer**: thư viện/kỹ thuật cụ thể (khả năng cao `wavesurfer.js` cho waveform+trim trên web) sẽ quyết định lúc thực sự bắt tay code scope đó, không chốt trước. **Vẫn đúng — CHƯA xây, xem mục 10.**
+- **Danh sách bài học User app**: nhóm theo quyển (`books`) — người dùng chọn quyển (Đương Đại 1/2/3) trước, rồi thấy danh sách bài của quyển đó. Khớp với model `lessons.book_id` đã có sẵn. **Vẫn đúng hướng — chưa code (User app chưa bắt đầu).**
 
 ## 9. Việc CHƯA thiết kế chi tiết (để sau khi Admin ổn định, thuộc phạm vi User app)
 
@@ -191,11 +208,15 @@ Trang cắt audio hội thoại gốc thành từng dòng thoại:
 
 ## 10. Thứ tự triển khai (scope nhỏ, duyệt từng scope trước khi sang scope tiếp theo)
 
-1. Schema nền tảng: `vocabulary.dialogue_id`, `dialogue_lines.audio_url`, `grammar_examples.audio_url` + `example_type`, prompt Gemini giữ nguyên nhãn gốc trong `structure_note`
-2. `extraction_jobs.status` mở rộng (pending/reviewed/audio_ready/quiz_ready/imported/failed) + guard theo trạng thái
-3. Trang "Sinh & duyệt Audio" (TTS cho vocab+grammar_examples, nghe thử/tạo lại)
-4. Trang "Sinh & duyệt Quiz" (bảng `quiz_questions`, Gemini sinh 6 dạng, admin xem/sửa)
-5. Waveform trimmer (cắt audio hội thoại thật theo từng dòng)
-6. App User (repo mới, sau khi Admin ổn định)
+**Cập nhật trạng thái 2026-07-31** (đối chiếu code/migration thật):
+
+1. ✅ **XONG, nhưng ĐỔI KHÁC** — Schema nền tảng: `vocabulary.dialogue_id` và `dialogue_lines.audio_url` đúng như thiết kế (migration `0010`, `0011`); `grammar_examples.audio_url` + `example_type` đã làm xong rồi sau đó bị xoá/thay bằng `grammar_sections` (migration `0012`, `0018`) — xem mục 3.3/3.4.
+2. ✅ **XONG, rồi LÀM NGƯỢC LẠI** — `extraction_jobs.status` từng mở rộng đúng như thiết kế (migration `0011`: thêm `audio_ready`/`quiz_ready`), sau đó bị rút gọn lại còn 3 trạng thái (`pending/reviewed/imported/failed`, commit `8d9eacf`) — xem mục 5.
+3. ✅ **XONG, nhưng KHÁC VỊ TRÍ** — không phải "trang Sinh & duyệt Audio" riêng trong pipeline job; là tab "Audio" trên trang Sửa bài học (`lib/db/generateLessonAudio.ts`), sinh trên dữ liệu đã import thật thay vì `raw_json` của job.
+4. ✅ **XONG, nhưng KHÁC VỊ TRÍ** — tương tự mục 3: tab "Quiz" trên trang Sửa bài học (`lib/db/generateLessonQuiz.ts`, `quiz_questions` table đã có), không phải trang riêng trong pipeline job.
+5. ❌ **CHƯA LÀM** — Waveform trimmer: không có code nào trong repo (đã grep xác nhận), vẫn đúng như trạng thái "chưa xây" của bản thiết kế gốc.
+6. ❌ **CHƯA LÀM** — App User: chưa bắt đầu, repo riêng chưa tồn tại.
+
+Tài liệu chi tiết cho mục 3+4 (đã đổi hướng): `docs/superpowers/specs/2026-07-30-lesson-scoped-audio-quiz-design.md`.
 
 Quy tắc làm việc: code xong 1 scope → dừng lại để user kiểm tra/duyệt → mới sang scope tiếp theo. Không code nhiều scope liền một lúc.
