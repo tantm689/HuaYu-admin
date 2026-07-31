@@ -15,9 +15,15 @@ export async function deleteLessonAndAudio(lessonId: string): Promise<void> {
       ? await supabase.from('vocabulary').select('id').in('dialogue_id', dialogueIds)
       : { data: [] as { id: string }[] }
 
+  const { data: dialogueLines } =
+    dialogueIds.length > 0
+      ? await supabase.from('dialogue_lines').select('id').in('dialogue_id', dialogueIds)
+      : { data: [] as { id: string }[] }
+
   const audioPaths = [
     ...dialogueIds.map((id) => `dialogues/${id}.mp3`),
     ...(vocabulary ?? []).map((v: { id: string }) => `vocab/${v.id}.mp3`),
+    ...(dialogueLines ?? []).map((l: { id: string }) => `dialogue-lines/${l.id}.wav`),
   ]
   if (audioPaths.length > 0) {
     await supabase.storage.from('audio').remove(audioPaths)

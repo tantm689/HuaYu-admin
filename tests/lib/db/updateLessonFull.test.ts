@@ -237,6 +237,16 @@ describe('updateLessonFull', () => {
     expect(dialogueDeleteMock).toHaveBeenCalledWith(['dlg-1'])
   })
 
+  it('deletes a dialogue line missing from the payload and removes its trimmed audio file', async () => {
+    await updateLessonFull('lesson-1', {
+      titleZh: 'A', titleVi: 'B',
+      dialogues: [{ id: 'dlg-1', order: 1, audioCode: null, lines: [], vocabulary: [] }],
+      grammarPoints: [],
+    })
+    expect(storageRemoveMock).toHaveBeenCalledWith(['dialogue-lines/line-1.wav'])
+    expect(lineDeleteMock).toHaveBeenCalledWith(['line-1'])
+  })
+
   it('updates an existing vocab entry in place', async () => {
     await updateLessonFull('lesson-1', {
       titleZh: 'A', titleVi: 'B',

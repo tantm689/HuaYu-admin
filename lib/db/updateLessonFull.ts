@@ -101,6 +101,7 @@ async function syncDialogueLines(
 
   const toDelete = [...existingIds].filter((id) => !keptIds.has(id))
   if (toDelete.length > 0) {
+    await supabase.storage.from('audio').remove(toDelete.map((id) => `dialogue-lines/${id}.wav`))
     await supabase.from('dialogue_lines').delete().in('id', toDelete)
   }
 

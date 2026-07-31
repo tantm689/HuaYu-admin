@@ -14,6 +14,9 @@ vi.mock('@/lib/supabase/server', () => ({
       if (table === 'vocabulary') {
         return { select: () => ({ in: () => Promise.resolve({ data: [{ id: 'vocab-1' }] }) }) }
       }
+      if (table === 'dialogue_lines') {
+        return { select: () => ({ in: () => Promise.resolve({ data: [{ id: 'line-1' }] }) }) }
+      }
       if (table === 'lessons') {
         return {
           delete: () => ({
@@ -45,12 +48,13 @@ describe('deleteLessonAndAudio', () => {
     storageRemoveMock.mockClear()
   })
 
-  it('removes dialogue and vocabulary audio files, then deletes the lesson row', async () => {
+  it('removes dialogue, vocabulary, and dialogue-line audio files, then deletes the lesson row', async () => {
     await deleteLessonAndAudio('lesson-1')
     expect(storageRemoveMock).toHaveBeenCalledWith([
       'dialogues/dlg-1.mp3',
       'dialogues/dlg-2.mp3',
       'vocab/vocab-1.mp3',
+      'dialogue-lines/line-1.wav',
     ])
     expect(lessonDeleteMock).toHaveBeenCalledWith('lesson-1')
   })

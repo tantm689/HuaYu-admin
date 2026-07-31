@@ -56,7 +56,10 @@ vi.mock('@/lib/supabase/server', () => ({
         }
       }
       if (table === 'dialogue_lines') {
-        return { insert: () => Promise.resolve({ error: null }) }
+        return {
+          select: () => ({ in: () => Promise.resolve({ data: [{ id: 'old-line-1' }] }) }),
+          insert: () => Promise.resolve({ error: null }),
+        }
       }
       if (table === 'vocabulary') {
         return {
@@ -241,6 +244,7 @@ describe('importExtractionJob', () => {
     expect(storageRemoveMock).toHaveBeenCalledWith('audio', [
       'dialogues/old-dlg-1.mp3',
       'vocab/old-vocab-1.mp3',
+      'dialogue-lines/old-line-1.wav',
     ])
     expect(deleteLessonMock).toHaveBeenCalledWith('old-lesson-1')
     expect(insertLessonMock).toHaveBeenCalledWith(
