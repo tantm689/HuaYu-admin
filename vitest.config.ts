@@ -13,6 +13,13 @@ export default defineConfig({
     environment: 'node',
     setupFiles: ['./tests/setup.ts'],
     globals: true,
+    // Vitest's default exclude list doesn't know about git worktrees checked
+    // out under this repo (e.g. .worktrees/admin-pdf-extraction/) - without
+    // this, it happily globs into that sibling checkout too and runs its
+    // tests a second time against a different module graph, causing flaky
+    // cross-talk (mismatched mocks, missing env vars the worktree's own
+    // .env.local would have had).
+    exclude: ['**/node_modules/**', '**/.worktrees/**', '**/worktrees/**'],
   },
   resolve: {
     alias: { '@': path.resolve(__dirname, '.') },

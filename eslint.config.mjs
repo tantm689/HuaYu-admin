@@ -15,6 +15,16 @@ const eslintConfig = defineConfig([
     // Vendored pdfjs-dist worker, copied verbatim into public/ for
     // client-side PDF thumbnail rendering (see Task 7 report).
     "public/pdf.worker.min.mjs",
+    // Sibling git worktree checkouts of this same repo - not part of this
+    // checkout's own source, must not be linted from here (same reasoning
+    // as the vitest.config.ts test-exclude for .worktrees/).
+    ".worktrees/**",
+    "worktrees/**",
+    // Per-machine Claude Code tooling (skills, agent config) - not part of
+    // the app's source, gitignored, and its own scripts don't follow this
+    // project's lint rules.
+    ".claude/**",
+    ".superpowers/**",
   ]),
   {
     // Test files widely rely on `as any` to satisfy Next.js 16's
