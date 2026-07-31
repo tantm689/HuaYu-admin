@@ -130,7 +130,7 @@ type QuizQuestionView = {
   | { type: "listening_choice"; audioUrl: string; choices: string[]; correctIndex: number }
   | { type: "tone_choice"; wordZh: string; pinyinNoTone: string; choices: string[]; correctIndex: number }
   | { type: "matching"; pairs: { left: string; right: string }[] }
-  | { type: "fill_blank"; sentence: string; choices: string[]; correctIndex: number }
+  | { type: "fill_blank"; contextSentence: string; sentence: string; choices: string[]; correctIndex: number }
   | { type: "sentence_order"; words: string[]; correctOrder: number[] }
 )
 
@@ -324,6 +324,15 @@ function QuizQuestionCard({
 
       {question.type === "fill_blank" && (
         <>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground">Câu ngữ cảnh (câu trước đó):</span>
+            <EditableText
+              value={question.contextSentence}
+              onChange={(contextSentence) => onChangePayload({ contextSentence })}
+              className="field-zh text-muted-foreground"
+              disabled={!editable}
+            />
+          </div>
           <EditableText
             value={question.sentence}
             onChange={(sentence) => onChangePayload({ sentence })}
@@ -2170,33 +2179,49 @@ export default function LessonEditPage({ params }: Props) {
             <p className="text-sm text-muted-foreground">Chưa có câu hỏi quiz nào.</p>
           )}
 
-          {([1, 2] as const).map((part) => {
-            const partQuestions = (quizQuestions ?? []).filter((q) => q.part === part)
-            if (partQuestions.length === 0) return null
-            return (
-              <section key={part} className="flex flex-col gap-3">
-                <h3 className="text-base font-semibold text-foreground">
-                  Phần {part} ({partQuestions.length} câu)
-                </h3>
-                {partQuestions.map((q) => {
-                  const flatIndex = (quizQuestions ?? []).findIndex((x) => x.id === q.id)
-                  return (
-                    <QuizQuestionCard
-                      key={q.id}
-                      question={q}
-                      editable={isEditable}
-                      onChangePayload={(patch) => updateQuizQuestionPayload(q.id, patch)}
-                      onRemove={() => removeQuizQuestion(q.id)}
-                      onMoveUp={() => moveQuizQuestion(q.id, -1)}
-                      onMoveDown={() => moveQuizQuestion(q.id, 1)}
-                      canMoveUp={canMoveWithinPart(quizQuestions ?? [], flatIndex, -1)}
-                      canMoveDown={canMoveWithinPart(quizQuestions ?? [], flatIndex, 1)}
-                    />
-                  )
-                })}
-              </section>
-            )
-          })}
+          {(quizQuestions ?? []).length > 0 && (
+            <Tabs defaultValue="1">
+              <TabsList>
+                <TabsIndicator />
+                <TabsTab value="1">
+                  Phần 1 ({(quizQuestions ?? []).filter((q) => q.part === 1).length})
+                </TabsTab>
+                <TabsTab value="2">
+                  Phần 2 ({(quizQuestions ?? []).filter((q) => q.part === 2).length})
+                </TabsTab>
+              </TabsList>
+
+              {([1, 2] as const).map((part) => {
+                const partQuestions = (quizQuestions ?? []).filter((q) => q.part === part)
+                return (
+                  <TabsPanel key={part} value={String(part)}>
+                    <div className="flex flex-col gap-3">
+                      {partQuestions.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Chưa có câu hỏi phần này.</p>
+                      ) : (
+                        partQuestions.map((q) => {
+                          const flatIndex = (quizQuestions ?? []).findIndex((x) => x.id === q.id)
+                          return (
+                            <QuizQuestionCard
+                              key={q.id}
+                              question={q}
+                              editable={isEditable}
+                              onChangePayload={(patch) => updateQuizQuestionPayload(q.id, patch)}
+                              onRemove={() => removeQuizQuestion(q.id)}
+                              onMoveUp={() => moveQuizQuestion(q.id, -1)}
+                              onMoveDown={() => moveQuizQuestion(q.id, 1)}
+                              canMoveUp={canMoveWithinPart(quizQuestions ?? [], flatIndex, -1)}
+                              canMoveDown={canMoveWithinPart(quizQuestions ?? [], flatIndex, 1)}
+                            />
+                          )
+                        })
+                      )}
+                    </div>
+                  </TabsPanel>
+                )
+              })}
+            </Tabs>
+          )}
         </div>
         </TabsPanel>
       </Tabs>
