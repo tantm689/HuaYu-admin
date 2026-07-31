@@ -190,7 +190,7 @@ export function SectionBlock({
   return (
     <section className="group/section relative rounded-md p-2 -m-2 transition-colors has-[>div>[data-danger]:hover]:bg-destructive/5 has-[>div>[data-danger]:hover]:outline-1 has-[>div>[data-danger]:hover]:outline-destructive/40">
       {!disabled && (
-        <div className="absolute top-2 right-2">
+        <div className="absolute top-2 right-2 z-10">
           <BlockActions
             onMoveUp={() => onMoveSection(-1)}
             onMoveDown={() => onMoveSection(1)}
@@ -203,20 +203,22 @@ export function SectionBlock({
         </div>
       )}
 
-      <EditableText
-        value={section.label}
-        onChange={(label) => onChangeSection({ label })}
-        placeholder="Nhãn đề mục (Chức năng, Cấu trúc, Cách dùng...)"
-        className="text-sm font-semibold tracking-wide text-foreground uppercase"
-        disabled={disabled}
-      />
-      <EditableText
-        value={section.content ?? ""}
-        onChange={(content) => onChangeSection({ content: content || null })}
-        placeholder="Nội dung giải thích"
-        className="mt-1 text-base leading-relaxed text-foreground/90"
-        disabled={disabled}
-      />
+      <div className="pr-16">
+        <EditableText
+          value={section.label}
+          onChange={(label) => onChangeSection({ label })}
+          placeholder="Nhãn đề mục (Chức năng, Cấu trúc, Cách dùng...)"
+          className="text-sm font-semibold tracking-wide text-foreground uppercase"
+          disabled={disabled}
+        />
+        <EditableText
+          value={section.content ?? ""}
+          onChange={(content) => onChangeSection({ content: content || null })}
+          placeholder="Nội dung giải thích"
+          className="mt-1 text-base leading-relaxed text-foreground/90"
+          disabled={disabled}
+        />
+      </div>
 
       {(section.examples.length > 0 || section.items.length === 0) && (
         <div className="mt-3 ml-2">
@@ -238,7 +240,7 @@ export function SectionBlock({
             className="group/item relative rounded-md p-2 -m-2 transition-colors has-[>div>[data-danger]:hover]:bg-destructive/5 has-[>div>[data-danger]:hover]:outline-1 has-[>div>[data-danger]:hover]:outline-destructive/40"
           >
             {!disabled && (
-              <div className="absolute top-2 right-2">
+              <div className="absolute top-2 right-2 z-10">
                 <BlockActions
                   onMoveUp={() => onMoveItem(itemIdx, -1)}
                   onMoveDown={() => onMoveItem(itemIdx, 1)}
@@ -250,7 +252,7 @@ export function SectionBlock({
                 />
               </div>
             )}
-            <div className="flex items-baseline gap-2">
+            <div className="flex items-baseline gap-2 pr-16">
               <EditableText
                 value={item.label}
                 onChange={(label) => onChangeItem(itemIdx, { label })}
