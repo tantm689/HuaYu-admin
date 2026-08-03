@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // tests/components/grammar-markdown-editor.test.tsx
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import GrammarMarkdownEditor from '@/components/grammar-markdown-editor'
 
@@ -25,5 +25,17 @@ describe('GrammarMarkdownEditor', () => {
     render(<GrammarMarkdownEditor value={'Nội dung.'} onChange={vi.fn()} disabled />)
     const editable = screen.getByRole('textbox')
     expect(editable).toHaveAttribute('contenteditable', 'false')
+  })
+
+  it('syncs editor content when the value prop changes externally after mount', async () => {
+    const { rerender } = render(<GrammarMarkdownEditor value={'Nội dung ban đầu.'} onChange={vi.fn()} />)
+    expect(await screen.findByText('Nội dung ban đầu.')).toBeInTheDocument()
+
+    rerender(<GrammarMarkdownEditor value={'Nội dung mới từ bên ngoài.'} onChange={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Nội dung mới từ bên ngoài.')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Nội dung ban đầu.')).not.toBeInTheDocument()
   })
 })

@@ -30,6 +30,14 @@ export default function GrammarMarkdownEditor({
     editor?.setEditable(!disabled)
   }, [editor, disabled])
 
+  useEffect(() => {
+    if (!editor) return
+    const currentMarkdown = (editor as EditorWithMarkdown).storage.markdown.getMarkdown()
+    if (value !== currentMarkdown) {
+      editor.commands.setContent(value)
+    }
+  }, [editor, value])
+
   return (
     <div className="rounded-md border bg-background p-4">
       <EditorContent

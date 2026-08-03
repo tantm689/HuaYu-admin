@@ -813,7 +813,7 @@ export default function JobReviewPage({ params }: Props) {
                       <h2 className="text-base font-semibold text-foreground">Ngữ pháp</h2>
                     </div>
                     <GrammarMarkdownEditor
-                      value={data.grammarMarkdown}
+                      value={data.grammarMarkdown ?? ''}
                       onChange={(grammarMarkdown) => setData((prev) => (prev ? { ...prev, grammarMarkdown } : prev))}
                     />
                   </div>

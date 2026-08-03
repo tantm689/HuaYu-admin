@@ -39,7 +39,10 @@ const LessonMetaSchema = z.object({
 export const ExtractionResultSchema = z.object({
   lesson: LessonMetaSchema,
   dialogues: z.array(DialogueSchema),
-  grammarMarkdown: z.string(),
+  // .default('') covers extraction jobs saved before this field existed,
+  // same as objectives above — otherwise safeParse fails and grammarMarkdown
+  // silently becomes undefined.
+  grammarMarkdown: z.string().default(''),
 })
 
 export type ExtractionResult = z.infer<typeof ExtractionResultSchema>
