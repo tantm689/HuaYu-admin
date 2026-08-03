@@ -1,9 +1,11 @@
 'use client'
 
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import { Markdown } from 'tiptap-markdown'
+import { Markdown, type MarkdownStorage } from 'tiptap-markdown'
 import { useEffect } from 'react'
+
+type EditorWithMarkdown = Editor & { storage: { markdown: MarkdownStorage } }
 
 export default function GrammarMarkdownEditor({
   value,
@@ -20,7 +22,7 @@ export default function GrammarMarkdownEditor({
     editable: !disabled,
     immediatelyRender: false,
     onUpdate: ({ editor }) => {
-      onChange(editor.storage.markdown.getMarkdown())
+      onChange((editor as EditorWithMarkdown).storage.markdown.getMarkdown())
     },
   })
 
