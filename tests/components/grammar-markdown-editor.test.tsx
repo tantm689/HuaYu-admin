@@ -110,33 +110,41 @@ describe('GrammarMarkdownEditor', () => {
     editor.destroy()
   })
 
-  // Regression test for a bug the table command's insertTable() had: it uses
-  // replaceSelectionWith at the cursor, so without splitting the block first,
-  // text typed AFTER the "/query" ended up shoved below the inserted table
-  // instead of staying in its own paragraph after it. Uses the same headless-
-  // editor direct-invocation strategy as the heading test above, since this
-  // also needs a specific mid-paragraph cursor position jsdom can't simulate.
-  it('splits the block before inserting a table, keeping trailing text in its own paragraph after the table', () => {
+  // Regression test for a bug the table command's insertTable() had: deleting
+  // the "/query" range left the selection collapsed at the document start
+  // instead of at range.from (verified empirically - a real quirk of this
+  // deleteRange/chain combination, not a jsdom limitation), so the
+  // subsequent splitBlock() split the wrong position and merged "before" and
+  // "after" together into one paragraph AFTER the table instead of keeping
+  // "before" in its own paragraph before it. The fix explicitly restores the
+  // selection to range.from before splitBlock. Uses a non-empty range (the
+  // actual "/query" text span, matching how the suggestion plugin really
+  // calls this command) rather than a collapsed one, since a collapsed
+  // range trivially has nothing to lose track of and would not have caught
+  // this bug.
+  it('splits the block before inserting a table, keeping "before" and "after" text in their own separate paragraphs', () => {
     const editor = new Editor({
       extensions: [StarterKit, Markdown, Table.configure({ resizable: false }), TableRow, TableHeader, TableCell],
-      content: '<p>before after</p>',
+      content: '<p>before /bang after</p>',
     })
 
     const tableItem = SLASH_COMMAND_ITEMS.find((item) => item.title === 'Bảng')
     expect(tableItem).toBeDefined()
 
-    // Cursor right after "before " (position 1 is doc start, +7 for "before ").
-    const cursor = 1 + 'before '.length
-    tableItem!.command({ editor, range: { from: cursor, to: cursor } })
+    const rangeFrom = 1 + 'before '.length
+    const rangeTo = rangeFrom + '/bang'.length
+    tableItem!.command({ editor, range: { from: rangeFrom, to: rangeTo } })
 
-    const nodeTypes = editor.getJSON().content?.map((node) => node.type)
-    expect(nodeTypes).toContain('table')
-    // "before" must come before the table, "after" after it - neither may be
-    // merged into the same paragraph as a table cell's contents.
-    const tableIndex = nodeTypes!.indexOf('table')
-    const docText = JSON.stringify(editor.getJSON())
-    expect(docText.indexOf('"before"')).toBeLessThan(docText.indexOf('"table"'))
-    expect(nodeTypes!.slice(tableIndex + 1)).toContain('paragraph')
+    const content = editor.getJSON().content ?? []
+    const tableIndex = content.findIndex((node) => node.type === 'table')
+    expect(tableIndex).toBeGreaterThan(-1)
+
+    const paragraphBefore = content[tableIndex - 1]
+    const paragraphAfter = content[tableIndex + 1]
+    expect(paragraphBefore?.type).toBe('paragraph')
+    expect(paragraphAfter?.type).toBe('paragraph')
+    expect((paragraphBefore?.content?.[0] as { text?: string } | undefined)?.text).toBe('before ')
+    expect((paragraphAfter?.content?.[0] as { text?: string } | undefined)?.text).toBe(' after')
 
     editor.destroy()
   })

@@ -50,12 +50,22 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
       // insertTable uses replaceSelectionWith at the cursor, so deleting the
       // "/query" text first and inserting right there would splice the
       // table into the middle of the current paragraph's text - anything
-      // typed after the cursor ends up shoved below the new table instead
-      // of staying in its own paragraph. splitBlock right after deleting the
-      // query first moves "everything after the cursor" into its own new
-      // paragraph, so the table gets inserted at a clean paragraph boundary
-      // and existing text keeps its original relative position.
-      editor.chain().focus().deleteRange(range).splitBlock().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+      // typed after the cursor ends up merged into the same paragraph as
+      // anything before it, with the table wedged in between as a sibling
+      // rather than actually separating the two. deleteRange's own resulting
+      // selection can't be trusted to still be at `range.from` (verified:
+      // it collapses to the document start instead), so the cursor is
+      // explicitly restored to range.from before splitBlock - only then does
+      // splitBlock correctly split the paragraph's remaining text into two,
+      // with the table landing at that clean boundary between them.
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .setTextSelection(range.from)
+        .splitBlock()
+        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+        .run()
     },
   },
 ]
