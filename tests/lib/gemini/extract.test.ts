@@ -13,7 +13,7 @@ vi.mock('@google/genai', () => {
   }
 })
 
-import { extractLessonFromPdf } from '@/lib/gemini/extract'
+import { extractLessonFromPdf, EXTRACTION_PROMPT } from '@/lib/gemini/extract'
 
 beforeEach(() => {
   generateContentMock.mockClear()
@@ -43,5 +43,15 @@ describe('extractLessonFromPdf', () => {
   it('throws a descriptive error when the response is not valid JSON', async () => {
     generateContentMock.mockResolvedValueOnce({ text: 'not json' })
     await expect(extractLessonFromPdf(new Uint8Array([1]), 1)).rejects.toThrow(/Gemini/)
+  })
+})
+
+describe('EXTRACTION_PROMPT grammar heading/example guidance', () => {
+  it('instructs a level-1 heading for "Ngữ pháp N"', () => {
+    expect(EXTRACTION_PROMPT).toContain('# Ngữ pháp N')
+  })
+
+  it('instructs numbered 3-line example blocks with italic pinyin', () => {
+    expect(EXTRACTION_PROMPT).toContain('*Wáng Xiānshēng yào bú yào hē kāfēi?*')
   })
 })
