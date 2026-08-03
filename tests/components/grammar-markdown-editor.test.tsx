@@ -110,6 +110,37 @@ describe('GrammarMarkdownEditor', () => {
     editor.destroy()
   })
 
+  // Regression test for a bug the table command's insertTable() had: it uses
+  // replaceSelectionWith at the cursor, so without splitting the block first,
+  // text typed AFTER the "/query" ended up shoved below the inserted table
+  // instead of staying in its own paragraph after it. Uses the same headless-
+  // editor direct-invocation strategy as the heading test above, since this
+  // also needs a specific mid-paragraph cursor position jsdom can't simulate.
+  it('splits the block before inserting a table, keeping trailing text in its own paragraph after the table', () => {
+    const editor = new Editor({
+      extensions: [StarterKit, Markdown, Table.configure({ resizable: false }), TableRow, TableHeader, TableCell],
+      content: '<p>before after</p>',
+    })
+
+    const tableItem = SLASH_COMMAND_ITEMS.find((item) => item.title === 'Bảng')
+    expect(tableItem).toBeDefined()
+
+    // Cursor right after "before " (position 1 is doc start, +7 for "before ").
+    const cursor = 1 + 'before '.length
+    tableItem!.command({ editor, range: { from: cursor, to: cursor } })
+
+    const nodeTypes = editor.getJSON().content?.map((node) => node.type)
+    expect(nodeTypes).toContain('table')
+    // "before" must come before the table, "after" after it - neither may be
+    // merged into the same paragraph as a table cell's contents.
+    const tableIndex = nodeTypes!.indexOf('table')
+    const docText = JSON.stringify(editor.getJSON())
+    expect(docText.indexOf('"before"')).toBeLessThan(docText.indexOf('"table"'))
+    expect(nodeTypes!.slice(tableIndex + 1)).toContain('paragraph')
+
+    editor.destroy()
+  })
+
   // Verifies the slash menu itself (the part of this feature that jsdom can
   // reliably exercise, per the "inserts a table" test above) also lists the
   // Heading 1 command with its expected label when the query is empty.

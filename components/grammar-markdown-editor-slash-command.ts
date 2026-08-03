@@ -47,12 +47,15 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
     title: 'Bảng',
     description: 'Chèn bảng 3 cột x 3 dòng',
     command: ({ editor, range }) => {
-      editor
-        .chain()
-        .focus()
-        .deleteRange(range)
-        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-        .run()
+      // insertTable uses replaceSelectionWith at the cursor, so deleting the
+      // "/query" text first and inserting right there would splice the
+      // table into the middle of the current paragraph's text - anything
+      // typed after the cursor ends up shoved below the new table instead
+      // of staying in its own paragraph. splitBlock right after deleting the
+      // query first moves "everything after the cursor" into its own new
+      // paragraph, so the table gets inserted at a clean paragraph boundary
+      // and existing text keeps its original relative position.
+      editor.chain().focus().deleteRange(range).splitBlock().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
     },
   },
 ]
@@ -61,7 +64,7 @@ export const SLASH_COMMAND_ITEMS: SlashCommandItem[] = [
 // tippy-free manual coordinates (avoids pulling in the `tippy.js` dependency
 // most TipTap slash-menu examples use, since this app has no other use for
 // it) - a small fixed-position <div> injected into the document body,
-// removed on selection/escape/blur.
+// removed on selection/escape/outside-click.
 export function createSlashCommandExtension() {
   return Extension.create({
     name: 'slashCommand',
@@ -99,9 +102,16 @@ export function createSlashCommandExtension() {
               })
             }
 
+            function handleOutsideMouseDown(event: MouseEvent) {
+              if (popupEl && !popupEl.contains(event.target as Node)) {
+                destroy()
+              }
+            }
+
             function destroy() {
               popupEl?.remove()
               popupEl = null
+              document.removeEventListener('mousedown', handleOutsideMouseDown, true)
             }
 
             return {
@@ -124,6 +134,10 @@ export function createSlashCommandExtension() {
                   popupEl.style.left = `${rect.left}px`
                 }
                 renderItems()
+                // Capture-phase so this fires before the mousedown that
+                // opened a *new* suggestion popup elsewhere would otherwise
+                // be swallowed by an item's own mousedown handler first.
+                document.addEventListener('mousedown', handleOutsideMouseDown, true)
               },
               onUpdate: (props: any) => {
                 currentItems = props.items
@@ -141,13 +155,17 @@ export function createSlashCommandExtension() {
                   return true
                 }
                 if (props.event.key === 'ArrowDown') {
-                  selectedIndex = (selectedIndex + 1) % currentItems.length
-                  renderItems()
+                  if (currentItems.length > 0) {
+                    selectedIndex = (selectedIndex + 1) % currentItems.length
+                    renderItems()
+                  }
                   return true
                 }
                 if (props.event.key === 'ArrowUp') {
-                  selectedIndex = (selectedIndex - 1 + currentItems.length) % currentItems.length
-                  renderItems()
+                  if (currentItems.length > 0) {
+                    selectedIndex = (selectedIndex - 1 + currentItems.length) % currentItems.length
+                    renderItems()
+                  }
                   return true
                 }
                 if (props.event.key === 'Enter') {
