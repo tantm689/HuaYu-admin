@@ -12,7 +12,7 @@ vi.mock('@/lib/supabase/server', () => ({
                   data: {
                     id: 'lesson-1', lesson_no: 1, title_zh: 'A', title_vi: 'B',
                     theme: null, objectives: [], status: 'draft',
-                    grammar_markdown: '## Ngữ pháp 1: Test\n\n**CHỨC NĂNG**\n\nNội dung.',
+                    grammar_markdown: '# Ngữ pháp 1: Test\n\n**CHỨC NĂNG**\n\nNội dung.',
                   },
                   error: null,
                 }),
@@ -71,7 +71,7 @@ describe('getLessonFull', () => {
   it('maps grammar_markdown to grammarMarkdown', async () => {
     const lesson = await getLessonFull('lesson-1')
     expect(lesson).not.toBeNull()
-    expect(lesson!.grammarMarkdown).toBe('## Ngữ pháp 1: Test\n\n**CHỨC NĂNG**\n\nNội dung.')
+    expect(lesson!.grammarMarkdown).toBe('# Ngữ pháp 1: Test\n\n**CHỨC NĂNG**\n\nNội dung.')
   })
 
   it('maps dialogue_lines.start_time/end_time to startTime/endTime', async () => {

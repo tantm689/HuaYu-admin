@@ -8,7 +8,7 @@ const validSample = {
     lines: [{ order: 1, speakerZh: '明華', speakerPinyin: 'Mínghuá', textZh: '請問你是陳月美小姐嗎？', pinyin: 'Qǐngwèn nǐ shì Chén Yuèměi xiǎojiě ma?', translationVi: 'Xin hỏi bạn có phải là cô Trần Nguyệt Mỹ không?' }],
     vocabulary: [{ order: 19, wordZh: '歡迎', pinyin: 'huānyíng', meaningVi: 'hoan nghênh, chào mừng' }],
   }],
-  grammarMarkdown: '## Ngữ pháp 1: Dùng 很 với động từ trạng thái\n\n**CẤU TRÚC**\n\nChủ ngữ + 很 hěn + Động từ trạng thái.\n\n烏龍茶很好喝。\n\n*Wūlóng chá hěn hǎohē.*\n\nTrà Ô Long uống rất ngon.',
+  grammarMarkdown: '# Ngữ pháp 1: Dùng 很 với động từ trạng thái\n\n**CẤU TRÚC**\n\nChủ ngữ + 很 hěn + Động từ trạng thái.\n\n烏龍茶很好喝。\n\n*Wūlóng chá hěn hǎohē.*\n\nTrà Ô Long uống rất ngon.',
 }
 
 describe('ExtractionResultSchema', () => {
@@ -71,7 +71,7 @@ it('defaults missing optional pinyin/translation fields to null instead of faili
     const withSections = {
       ...validSample,
       grammarMarkdown:
-        '## Ngữ pháp 1: Cách phủ định\n\n**CHỨC NĂNG**\n\nGiải thích chức năng.\n\n我不去。\n\n*Wǒ bù qù.*\n\nTôi không đi.\n\n**CÂU HỎI**\n\n你去嗎？\n\n*Nǐ qù ma?*\n\nBạn có đi không?',
+        '# Ngữ pháp 1: Cách phủ định\n\n**CHỨC NĂNG**\n\nGiải thích chức năng.\n\n我不去。\n\n*Wǒ bù qù.*\n\nTôi không đi.\n\n**CÂU HỎI**\n\n你去嗎？\n\n*Nǐ qù ma?*\n\nBạn có đi không?',
     }
     const parsed = ExtractionResultSchema.parse(withSections)
     expect(parsed.grammarMarkdown).toContain('**CHỨC NĂNG**')
@@ -83,11 +83,11 @@ it('defaults missing optional pinyin/translation fields to null instead of faili
     const withSubPoints = {
       ...validSample,
       grammarMarkdown:
-        '## Ngữ pháp 1: Cách đặt câu hỏi\n\n### A. Câu hỏi với A不A\n\n**CẤU TRÚC**\n\nCấu trúc: A不A.\n\n你好不好？\n\n*Nǐ hǎo bù hǎo?*\n\nBạn có tốt không?\n\n### B. Câu hỏi với 嗎\n\n**CẤU TRÚC**\n\nCấu trúc: CÂU + 嗎?',
+        '# Ngữ pháp 1: Cách đặt câu hỏi\n\n## A. Câu hỏi với A不A\n\n**CẤU TRÚC**\n\nCấu trúc: A不A.\n\n你好不好？\n\n*Nǐ hǎo bù hǎo?*\n\nBạn có tốt không?\n\n## B. Câu hỏi với 嗎\n\n**CẤU TRÚC**\n\nCấu trúc: CÂU + 嗎?',
     }
     const parsed = ExtractionResultSchema.parse(withSubPoints)
-    expect(parsed.grammarMarkdown).toContain('### A. Câu hỏi với A不A')
-    expect(parsed.grammarMarkdown).toContain('### B. Câu hỏi với 嗎')
+    expect(parsed.grammarMarkdown).toContain('## A. Câu hỏi với A不A')
+    expect(parsed.grammarMarkdown).toContain('## B. Câu hỏi với 嗎')
   })
 
 })

@@ -78,7 +78,7 @@ vi.mock('@/lib/supabase/server', () => ({
                   lines: [{ order: 1, speakerZh: null, speakerPinyin: null, textZh: 'x', pinyin: null, translationVi: null }],
                   vocabulary: [{ order: 1, wordZh: '你好', pinyin: 'nǐ hǎo', meaningVi: 'xin chào' }],
                 }],
-                grammarMarkdown: '## Ngữ pháp 1: Test\n\n**CHỨC NĂNG**\n\nNội dung.',
+                grammarMarkdown: '# Ngữ pháp 1: Test\n\n**CHỨC NĂNG**\n\nNội dung.',
               },
             },
             error: null,
@@ -142,7 +142,7 @@ describe('importExtractionJob', () => {
     expect(insertLessonMock).toHaveBeenCalledWith(
       expect.objectContaining({
         book_id: 'book-1', lesson_no: 1, status: 'draft',
-        grammar_markdown: '## Ngữ pháp 1: Test\n\n**CHỨC NĂNG**\n\nNội dung.',
+        grammar_markdown: '# Ngữ pháp 1: Test\n\n**CHỨC NĂNG**\n\nNội dung.',
       })
     )
     expect(insertVocabularyMock).toHaveBeenCalledWith([
