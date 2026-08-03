@@ -127,7 +127,7 @@ function baseLesson() {
         ],
       },
     ],
-    grammarPoints: [],
+    grammarMarkdown: '',
   }
 }
 

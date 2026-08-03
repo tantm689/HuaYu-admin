@@ -37,7 +37,7 @@ describe('POST /api/jobs/[jobId]/run', () => {
       error: null,
     })
     downloadMock.mockResolvedValue({ data: { arrayBuffer: () => Promise.resolve(new ArrayBuffer(4)) }, error: null })
-    extractMock.mockResolvedValue({ lesson: { lessonNo: 1 }, dialogues: [], vocabulary: [], grammarPoints: [] })
+    extractMock.mockResolvedValue({ lesson: { lessonNo: 1 }, dialogues: [], vocabulary: [], grammarMarkdown: '' })
 
     const req = new Request('http://localhost/api/jobs/job-1/run', { method: 'POST' })
     const res = await POST(req as any, { params: Promise.resolve({ jobId: 'job-1' }) })
