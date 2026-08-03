@@ -25,7 +25,7 @@ function lessonDataText(result: ExtractionResult): string {
   return JSON.stringify({
     lesson: result.lesson,
     dialogues: result.dialogues,
-    grammarPoints: result.grammarPoints,
+    grammarMarkdown: result.grammarMarkdown,
   })
 }
 

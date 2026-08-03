@@ -97,7 +97,7 @@ function baseResult(): ExtractionResult {
         vocabulary: [{ order: 1, wordZh: '你好', pinyin: 'nǐ hǎo', meaningVi: 'xin chào', audioUrl: 'https://x/vocab/a.mp3' }],
       },
     ],
-    grammarPoints: [],
+    grammarMarkdown: '',
   }
 }
 

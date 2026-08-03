@@ -7,10 +7,10 @@ import type { QuizQuestion } from '@/lib/db/types'
 
 // Adapts a LessonFullView (real DB rows, via getLessonFull) into the
 // ExtractionResult shape lib/gemini/generateQuiz.ts already knows how to
-// consume - it only reads lesson/dialogues/grammarPoints, so this doesn't
+// consume - it only reads lesson/dialogues/grammarMarkdown, so this doesn't
 // need every field ExtractionResult normally carries, just the ones the
 // quiz prompt actually uses (wordZh/pinyin/meaningVi/audioUrl for
-// vocabulary, textZh for dialogue lines, sections/examples for grammar).
+// vocabulary, textZh for dialogue lines, the grammarMarkdown string for grammar).
 function toExtractionResult(lesson: NonNullable<Awaited<ReturnType<typeof getLessonFull>>>): ExtractionResult {
   return {
     lesson: {
@@ -40,59 +40,7 @@ function toExtractionResult(lesson: NonNullable<Awaited<ReturnType<typeof getLes
         audioUrl: v.audioUrl,
       })),
     })),
-    grammarPoints: lesson.grammarPoints.map((g) => ({
-      order: g.order,
-      titleVi: g.titleVi,
-      sections: g.sections.map((s) => ({
-        order: s.order,
-        label: s.label,
-        content: s.content,
-        examples: s.examples.map((e) => ({
-          order: e.order,
-          textZh: e.textZh,
-          pinyin: e.pinyin,
-          translationVi: e.translationVi,
-        })),
-        items: s.items.map((it) => ({
-          order: it.order,
-          label: it.label,
-          content: it.content,
-          examples: it.examples.map((e) => ({
-            order: e.order,
-            textZh: e.textZh,
-            pinyin: e.pinyin,
-            translationVi: e.translationVi,
-          })),
-        })),
-      })),
-      subPoints: g.subPoints.map((sp) => ({
-        order: sp.order,
-        label: sp.label,
-        titleVi: sp.titleVi,
-        sections: sp.sections.map((s) => ({
-          order: s.order,
-          label: s.label,
-          content: s.content,
-          examples: s.examples.map((e) => ({
-            order: e.order,
-            textZh: e.textZh,
-            pinyin: e.pinyin,
-            translationVi: e.translationVi,
-          })),
-          items: s.items.map((it) => ({
-            order: it.order,
-            label: it.label,
-            content: it.content,
-            examples: it.examples.map((e) => ({
-              order: e.order,
-              textZh: e.textZh,
-              pinyin: e.pinyin,
-              translationVi: e.translationVi,
-            })),
-          })),
-        })),
-      })),
-    })),
+    grammarMarkdown: lesson.grammarMarkdown ?? '',
   }
 }
 
