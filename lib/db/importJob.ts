@@ -64,6 +64,7 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
       title_vi: result.lesson.titleVi,
       theme: result.lesson.theme,
       objectives: result.lesson.objectives,
+      grammar_markdown: result.grammarMarkdown,
       status: 'draft',
     })
     .select()
@@ -116,83 +117,6 @@ export async function importExtractionJob(jobId: string): Promise<{ lessonId: st
         if (vocabError) throw new Error(vocabError.message)
       }
     }
-
-    async function insertExamples(grammarSectionId: string, examples: { order: number; textZh: string; pinyin: string | null; translationVi: string | null }[]) {
-      if (examples.length === 0) return
-      const { error: exError } = await supabase.from('grammar_examples').insert(
-        examples.map((ex) => ({
-          grammar_section_id: grammarSectionId,
-          order: ex.order,
-          text_zh: ex.textZh,
-          pinyin: ex.pinyin,
-          translation_vi: ex.translationVi,
-        }))
-      )
-      if (exError) throw new Error(exError.message)
-    }
-
-    async function insertSections(
-      sections: (typeof result.grammarPoints)[number]['sections'],
-      owner: { grammar_point_id: string } | { grammar_sub_point_id: string } | { parent_section_id: string }
-    ) {
-      for (const section of sections) {
-        const { data: secRow, error: secError } = await supabase
-          .from('grammar_sections')
-          .insert({
-            ...owner,
-            order: section.order,
-            label: section.label,
-            content: section.content,
-          })
-          .select()
-          .single()
-
-        if (secError || !secRow) throw new Error(secError?.message ?? 'failed to insert grammar section')
-
-        await insertExamples(secRow.id, section.examples)
-
-        if (section.items.length > 0) {
-          await insertSections(
-            section.items.map((item) => ({ ...item, items: [] })),
-            { parent_section_id: secRow.id }
-          )
-        }
-      }
-    }
-
-    for (const gp of result.grammarPoints) {
-      const { data: gpRow, error: gpError } = await supabase
-        .from('grammar_points')
-        .insert({
-          lesson_id: lesson.id,
-          order: gp.order,
-          title_vi: gp.titleVi,
-        })
-        .select()
-        .single()
-
-      if (gpError || !gpRow) throw new Error(gpError?.message ?? 'failed to insert grammar point')
-
-      await insertSections(gp.sections, { grammar_point_id: gpRow.id })
-
-      for (const sp of gp.subPoints) {
-        const { data: spRow, error: spError } = await supabase
-          .from('grammar_sub_points')
-          .insert({
-            grammar_point_id: gpRow.id,
-            order: sp.order,
-            label: sp.label,
-            title_vi: sp.titleVi,
-          })
-          .select()
-          .single()
-
-        if (spError || !spRow) throw new Error(spError?.message ?? 'failed to insert grammar sub-point')
-
-        await insertSections(sp.sections, { grammar_sub_point_id: spRow.id })
-      }
-    }
-
   } catch (err) {
     // A partial import (lesson committed, some children inserted) can never
     // be retried cleanly - the unique (book_id, lesson_no) constraint blocks
