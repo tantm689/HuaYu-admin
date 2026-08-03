@@ -8,13 +8,7 @@ const validSample = {
     lines: [{ order: 1, speakerZh: '明華', speakerPinyin: 'Mínghuá', textZh: '請問你是陳月美小姐嗎？', pinyin: 'Qǐngwèn nǐ shì Chén Yuèměi xiǎojiě ma?', translationVi: 'Xin hỏi bạn có phải là cô Trần Nguyệt Mỹ không?' }],
     vocabulary: [{ order: 19, wordZh: '歡迎', pinyin: 'huānyíng', meaningVi: 'hoan nghênh, chào mừng' }],
   }],
-  grammarPoints: [{
-    order: 1, titleVi: 'Dùng 很 với động từ trạng thái',
-    sections: [{
-      order: 1, label: 'Cấu trúc', content: 'Chủ ngữ + 很 hěn + Động từ trạng thái.',
-      examples: [{ order: 1, textZh: '烏龍茶很好喝。', pinyin: 'Wūlóng chá hěn hǎohē.', translationVi: 'Trà Ô Long uống rất ngon.' }],
-    }],
-  }],
+  grammarMarkdown: '## Ngữ pháp 1: Dùng 很 với động từ trạng thái\n\n**CẤU TRÚC**\n\nChủ ngữ + 很 hěn + Động từ trạng thái.\n\n烏龍茶很好喝。\n\n*Wūlóng chá hěn hǎohē.*\n\nTrà Ô Long uống rất ngon.',
 }
 
 describe('ExtractionResultSchema', () => {
@@ -73,53 +67,27 @@ it('defaults missing optional pinyin/translation fields to null instead of faili
     expect(parsed.dialogues[0].vocabulary).toEqual([])
   })
 
-  it('accepts multiple sections each with their own label, content, and examples', () => {
+  it('accepts a grammarMarkdown string with multiple headings, bold labels, and example blocks', () => {
     const withSections = {
       ...validSample,
-      grammarPoints: [{
-        order: 1, titleVi: null,
-        sections: [
-          { order: 1, label: 'Chức năng', content: 'Giải thích chức năng.', examples: [{ order: 1, textZh: '我不去。', pinyin: null, translationVi: null }] },
-          { order: 2, label: 'Câu hỏi', content: null, examples: [{ order: 1, textZh: '你去嗎？', pinyin: null, translationVi: null }] },
-        ],
-      }],
+      grammarMarkdown:
+        '## Ngữ pháp 1: Cách phủ định\n\n**CHỨC NĂNG**\n\nGiải thích chức năng.\n\n我不去。\n\n*Wǒ bù qù.*\n\nTôi không đi.\n\n**CÂU HỎI**\n\n你去嗎？\n\n*Nǐ qù ma?*\n\nBạn có đi không?',
     }
     const parsed = ExtractionResultSchema.parse(withSections)
-    expect(parsed.grammarPoints[0].sections).toHaveLength(2)
-    expect(parsed.grammarPoints[0].sections[0].label).toBe('Chức năng')
-    expect(parsed.grammarPoints[0].sections[1].label).toBe('Câu hỏi')
-    expect(parsed.grammarPoints[0].sections[1].examples[0].textZh).toBe('你去嗎？')
+    expect(parsed.grammarMarkdown).toContain('**CHỨC NĂNG**')
+    expect(parsed.grammarMarkdown).toContain('**CÂU HỎI**')
+    expect(parsed.grammarMarkdown).toContain('你去嗎？')
   })
 
-  it('defaults a grammar point missing subPoints to an empty array', () => {
-    const parsed = ExtractionResultSchema.parse(validSample)
-    expect(parsed.grammarPoints[0].subPoints).toEqual([])
-  })
-
-  it('accepts a grammar point with lettered subPoints, each with their own sections and examples', () => {
+  it('accepts a grammarMarkdown string with lettered subheadings for lettered sub-points', () => {
     const withSubPoints = {
       ...validSample,
-      grammarPoints: [{
-        order: 1, titleVi: 'Cách đặt câu hỏi', sections: [],
-        subPoints: [
-          {
-            order: 1, label: 'A', titleVi: 'Câu hỏi với A不A',
-            sections: [{
-              order: 1, label: 'Cấu trúc', content: 'Cấu trúc: A不A.',
-              examples: [{ order: 1, textZh: '你好不好？', pinyin: 'Nǐ hǎo bù hǎo?', translationVi: 'Bạn có tốt không?' }],
-            }],
-          },
-          {
-            order: 2, label: 'B', titleVi: 'Câu hỏi với 嗎',
-            sections: [{ order: 1, label: 'Cấu trúc', content: 'Cấu trúc: CÂU + 嗎?', examples: [] }],
-          },
-        ],
-      }],
+      grammarMarkdown:
+        '## Ngữ pháp 1: Cách đặt câu hỏi\n\n### A. Câu hỏi với A不A\n\n**CẤU TRÚC**\n\nCấu trúc: A不A.\n\n你好不好？\n\n*Nǐ hǎo bù hǎo?*\n\nBạn có tốt không?\n\n### B. Câu hỏi với 嗎\n\n**CẤU TRÚC**\n\nCấu trúc: CÂU + 嗎?',
     }
     const parsed = ExtractionResultSchema.parse(withSubPoints)
-    expect(parsed.grammarPoints[0].subPoints).toHaveLength(2)
-    expect(parsed.grammarPoints[0].subPoints[0]).toMatchObject({ label: 'A', titleVi: 'Câu hỏi với A不A' })
-    expect(parsed.grammarPoints[0].subPoints[0].sections[0].examples).toHaveLength(1)
+    expect(parsed.grammarMarkdown).toContain('### A. Câu hỏi với A不A')
+    expect(parsed.grammarMarkdown).toContain('### B. Câu hỏi với 嗎')
   })
 
 })

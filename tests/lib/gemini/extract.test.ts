@@ -21,17 +21,20 @@ beforeEach(() => {
 
 describe('extractLessonFromPdf', () => {
   it('parses a valid Gemini JSON response into an ExtractionResult', async () => {
+    const grammarMarkdown = '## Ngữ pháp 1: Cách đặt câu hỏi bằng tiếng Trung\n\n**CHỨC NĂNG**\n\nDùng để hỏi.\n\n你好嗎？\n\n*nǐ hǎo ma？*\n\nBạn khoẻ không?'
+
     generateContentMock.mockResolvedValueOnce({
       text: JSON.stringify({
         lesson: { lessonNo: 1, titleZh: 'A', titleVi: 'B' },
         dialogues: [],
         vocabulary: [],
-        grammarPoints: [],
+        grammarMarkdown,
       }),
     })
 
     const result = await extractLessonFromPdf(new Uint8Array([1, 2, 3]), 1)
     expect(result.lesson.lessonNo).toBe(1)
+    expect(result.grammarMarkdown).toBe(grammarMarkdown)
     expect(generateContentMock).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'gemini-3.6-flash' })
     )
