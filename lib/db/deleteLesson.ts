@@ -1,9 +1,10 @@
 import { createServerSupabase } from '@/lib/supabase/server'
 
 // Deletes a lesson and its DB cascade (dialogues/dialogue_lines/vocabulary/
-// grammar_points/grammar_examples), plus the audio files the cascade never
-// touches since it only deletes rows, not storage objects. Shared by the
-// lesson DELETE route and importJob.ts's overwrite-on-import path.
+// quiz_questions - grammar_markdown is just a column on lessons, no cascade
+// needed for it), plus the audio files the cascade never touches since it
+// only deletes rows, not storage objects. Shared by the lesson DELETE route
+// and importJob.ts's overwrite-on-import path.
 export async function deleteLessonAndAudio(lessonId: string): Promise<void> {
   const supabase = createServerSupabase()
 
