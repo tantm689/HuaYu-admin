@@ -17,9 +17,14 @@
 
 alter table lessons add column grammar_markdown text;
 
-drop function if exists grammar_section_lesson_id(uuid);
-
+-- Tables first, then the function: grammar_sections/grammar_examples each
+-- have an RLS policy that calls grammar_section_lesson_id(uuid), so
+-- Postgres refuses to drop the function first (dependent-object error)
+-- unless CASCADE is used. Dropping the tables (which drops their policies
+-- along with them) before the function avoids needing CASCADE here.
 drop table if exists grammar_examples;
 drop table if exists grammar_sections;
 drop table if exists grammar_sub_points;
 drop table if exists grammar_points;
+
+drop function if exists grammar_section_lesson_id(uuid);
