@@ -57,7 +57,12 @@ function toRow(lessonId: string, q: Part1Question | Part2Question): {
   order: number
   payload: unknown
 } {
-  const { part, type, order, ...payload } = q
+  const { part, type, order, ...rest } = q
+  // grammarPointUsed (fill_blank/sentence_order only) is bookkeeping Gemini
+  // uses to spread questions across the lesson's grammar points - it's never
+  // meant for the User App's quiz UI, so it's dropped here rather than
+  // persisted into payload alongside the fields that actually are.
+  const { grammarPointUsed: _grammarPointUsed, ...payload } = rest as typeof rest & { grammarPointUsed?: string }
   return { lesson_id: lessonId, part, type, order, payload }
 }
 

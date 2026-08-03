@@ -57,6 +57,13 @@ const FillBlankSchema = z.object({
   sentence: z.string(),
   choices: choice4,
   correctIndex: z.number().min(0).max(3),
+  // Internal-only bookkeeping field: which of the lesson's grammar points
+  // (by heading, from grammarMarkdown) this question's blanked word
+  // exercises. Never surfaced in the User App's quiz UI - it only exists so
+  // Gemini has to commit to a specific grammar point per question instead of
+  // picking whichever sentence is easiest and drifting toward the same 1-2
+  // patterns across all 5 fill_blank questions.
+  grammarPointUsed: z.string().optional(),
 })
 
 const SentenceOrderSchema = z.object({
@@ -65,6 +72,8 @@ const SentenceOrderSchema = z.object({
   order: z.number(),
   words: z.array(z.string()).min(2),
   correctOrder: z.array(z.number()),
+  // Same internal-only bookkeeping as FillBlankSchema.grammarPointUsed.
+  grammarPointUsed: z.string().optional(),
 })
 
 // z.discriminatedUnion requires each member to be a plain ZodObject with a
@@ -231,6 +240,11 @@ export const GEMINI_QUIZ_PART2_RESPONSE_SCHEMA = {
             nullable: true,
             description: 'Dùng cho sentence_order: thứ tự index đúng (theo vị trí trong mảng "words") để ghép thành câu hoàn chỉnh.',
             items: { type: 'integer' },
+          },
+          grammarPointUsed: {
+            type: 'string',
+            nullable: true,
+            description: 'Dùng cho fill_blank và sentence_order: tên/tiêu đề điểm ngữ pháp (lấy từ heading "## Ngữ pháp N: ..." trong grammarMarkdown) mà câu này đang áp dụng. Trường nội bộ để tự kiểm soát độ đa dạng, không hiển thị cho người học.',
           },
         },
         required: ['part', 'type', 'order'],
