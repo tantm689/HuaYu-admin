@@ -53,6 +53,8 @@ Sinh đúng 15 câu hỏi thuộc 3 dạng vận dụng câu/ngữ pháp, MỖI 
 
 QUAN TRỌNG: mỗi câu hỏi PHẢI có "part" (luôn là 2), "type", "order" (thứ tự liên tục 1-15). Chỉ dùng nội dung có trong dữ liệu được cung cấp bên dưới, KHÔNG tự sáng tác câu/từ vựng ngoài phạm vi bài học này.
 
+BẮT BUỘC KHÔNG TRÙNG CÂU GIỮA "fill_blank" VÀ "sentence_order": 5 câu gốc dùng cho "fill_blank" (trước khi đục lỗ) và 5 câu gốc dùng cho "sentence_order" (trước khi xáo trộn) PHẢI là 10 câu khác nhau hoàn toàn - không được lấy cùng 1 câu bài khoá/ví dụ cho cả 2 dạng. Dữ liệu bài học có nhiều đoạn hội thoại và nhiều ví dụ ngữ pháp, đủ để chọn 10 câu khác nhau - trước khi trả về, tự kiểm tra lại danh sách câu gốc đã dùng cho 2 dạng này, nếu phát hiện trùng thì đổi sang câu khác.
+
 Trả về đúng theo JSON schema đã cung cấp, không thêm giải thích ngoài JSON.`
 
 // `usedFallbackModel` is always false now (no fallback model exists), kept

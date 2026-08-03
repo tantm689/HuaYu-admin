@@ -38,6 +38,20 @@ export function EditableText({
     el.setSelectionRange(el.value.length, el.value.length)
   }, [isEditing])
 
+  // Auto-grow the textarea to fit its content via JS instead of the CSS
+  // `field-sizing-content` property: that property was observed to break
+  // paste-over-selection in Chrome/Edge (Ctrl+V while text is selected only
+  // inserted instead of replacing) - resizing here after paste/type via a
+  // plain height recalculation avoids interfering with the browser's own
+  // paste-selection handling.
+  useEffect(() => {
+    if (!isEditing) return
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = "auto"
+    el.style.height = `${el.scrollHeight}px`
+  }, [isEditing, value])
+
   if (isEditing && !disabled) {
     return (
       <textarea
@@ -51,7 +65,7 @@ export function EditableText({
           if (e.key === "Escape") setIsEditing(false)
         }}
         className={cn(
-          "field-sizing-content w-full min-w-0 resize-none rounded-md border border-ring bg-background px-2 py-1 outline-none",
+          "w-full min-w-0 resize-none overflow-hidden rounded-md border border-ring bg-background px-2 py-1 outline-none",
           className
         )}
       />
