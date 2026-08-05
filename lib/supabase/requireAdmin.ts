@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
+import { isAdmin } from './isAdmin'
 
 // Route Handlers receive a plain `Request`, not `NextRequest`, so cookies
 // have to be read off the raw `Cookie` header rather than `request.cookies`
@@ -58,6 +59,17 @@ export async function requireAdmin(request: Request): Promise<RequireAdminResult
     return {
       authorized: false,
       response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+    }
+  }
+
+  // The Admin and User apps share one Supabase project - being logged in at
+  // all only proves the request has a valid account, not that it's an
+  // admin account. The `admins` table is the allowlist (see
+  // supabase/migrations/0021_admins.sql).
+  if (!(await isAdmin(user.id))) {
+    return {
+      authorized: false,
+      response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
     }
   }
 
