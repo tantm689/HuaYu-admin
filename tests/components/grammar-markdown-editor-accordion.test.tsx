@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest'
+import { useState } from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import GrammarMarkdownEditor from '@/components/grammar-markdown-editor'
@@ -63,6 +64,38 @@ describe('GrammarMarkdownEditor accordion', () => {
     expect(lastCall).toContain('Giải thích điểm 2.')
     expect(lastCall).toContain('Ngữ pháp 1: Cách đặt câu hỏi')
     expect(lastCall).toContain('Thêm chữ.')
+  })
+
+  // Regression test: handleSectionChange used to call the parent's onChange
+  // (itself a setState in both real call sites - the job review and lesson
+  // editor pages) from INSIDE setSections' updater function. React
+  // explicitly disallows updating a different component while rendering
+  // one ("Cannot update a component while rendering a different
+  // component"), which vi.fn() (used by every other test in this file)
+  // can't detect since it isn't a real setState call - only a genuine
+  // React-state-backed parent, wired the same way the real pages wire it,
+  // reproduces the warning. React logs this via console.error rather than
+  // throwing, so the assertion spies on that and fails the test if it fires.
+  it('does not trigger a "setState during render" warning when a real React-state parent owns onChange', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    function ParentWithRealState() {
+      const [value, setValue] = useState(twoPointMarkdown)
+      return <GrammarMarkdownEditor value={value} onChange={setValue} />
+    }
+    render(<ParentWithRealState />)
+
+    const editables = screen.getAllByRole('textbox')
+    const section1Text = editables[0].textContent ?? ''
+    fireEvent.input(editables[0], { target: { textContent: `${section1Text} Thêm chữ.` } })
+
+    await waitFor(() => expect(screen.getByText(/Thêm chữ\.$/)).toBeInTheDocument())
+
+    const setStateWarnings = consoleError.mock.calls.filter((call) =>
+      String(call[0]).includes('Cannot update a component')
+    )
+    expect(setStateWarnings).toHaveLength(0)
+    consoleError.mockRestore()
   })
 
   it('falls back to a single plain editor (no accordion) when the markdown has no grammar-point headings', () => {

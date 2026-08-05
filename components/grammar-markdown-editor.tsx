@@ -38,13 +38,18 @@ export default function GrammarMarkdownEditor({
   const sectionIds = useMemo(() => sections.map((s) => s.id), [sections])
 
   const handleSectionChange = (id: string, markdown: string) => {
-    setSections((prev) => {
-      const next = prev.map((s) => (s.id === id ? { ...s, markdown } : s))
-      const joined = joinGrammarMarkdown(next)
-      lastEmitted.current = joined
-      onChange(joined)
-      return next
-    })
+    // Compute the next sections/joined string first, then call setSections
+    // and onChange as two separate top-level calls - calling the parent's
+    // onChange (itself a setState, in both call sites of this component)
+    // from inside setSections' updater function runs it during React's
+    // render phase, which React explicitly disallows ("Cannot update a
+    // component while rendering a different component") and silently
+    // produced unpredictable update batching.
+    const next = sections.map((s) => (s.id === id ? { ...s, markdown } : s))
+    const joined = joinGrammarMarkdown(next)
+    lastEmitted.current = joined
+    setSections(next)
+    onChange(joined)
   }
 
   if (sections.length === 0) {
