@@ -166,4 +166,40 @@ describe('GrammarMarkdownEditor', () => {
     render(<GrammarMarkdownEditor value={tableMarkdown} onChange={vi.fn()} />)
     expect(screen.getByRole('table')).toBeInTheDocument()
   })
+
+  // Regression test for the reported bug: a 3-line example block (Hanzi /
+  // italic pinyin / Vietnamese) rendered as a single run-on line with no
+  // visual line breaks. Root cause verified via a scratch headless-Editor
+  // test: Markdown treats indented continuation lines inside one list item
+  // as a single paragraph and silently drops the line breaks unless each
+  // line ends with a hard line break (two trailing spaces, or a trailing
+  // "\"). This asserts the parsed doc actually contains hardBreak nodes
+  // between the three lines, not just adjacent text nodes with no break -
+  // the bug this is guarding against would still pass a "text exists"
+  // assertion since the words are all still present, just concatenated.
+  it('renders each line of a hard-break-separated example block as its own line, not run together', () => {
+    const exampleMarkdown = [
+      '1. 王先生要不要喝咖啡？  ',
+      '   *Wáng Xiānshēng yào bú yào hē kāfēi?*  ',
+      '   Ngài Vương có muốn uống cà phê hay không?',
+    ].join('\n')
+    const editor = new Editor({ extensions: [StarterKit, Markdown], content: exampleMarkdown })
+    type LooseNode = { type?: string; content?: LooseNode[] }
+    const doc = editor.getJSON() as LooseNode
+    const paragraph = doc.content?.[0]?.content?.[0]?.content?.[0]
+    const hardBreakCount = paragraph?.content?.filter((node) => node.type === 'hardBreak').length ?? 0
+    expect(hardBreakCount).toBe(2)
+    editor.destroy()
+  })
+
+  it('shows row/column controls when the cursor is inside a table, and hides the text bubble menu there', async () => {
+    const tableMarkdown = '| A | B |\n| --- | --- |\n| 1 | 2 |'
+    render(<GrammarMarkdownEditor value={tableMarkdown} onChange={vi.fn()} />)
+    const cell = screen.getByText('1')
+    fireEvent.click(cell)
+
+    await waitFor(() => expect(screen.getByText('Xoá bảng')).toBeInTheDocument())
+    expect(screen.getByText('+ Hàng dưới')).toBeInTheDocument()
+    expect(screen.getByText('+ Cột phải')).toBeInTheDocument()
+  })
 })
