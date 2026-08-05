@@ -14,9 +14,10 @@ import GrammarMarkdownEditor from '@/components/grammar-markdown-editor'
 import { SLASH_COMMAND_ITEMS } from '@/components/grammar-markdown-editor-slash-command'
 
 describe('GrammarMarkdownEditor', () => {
-  it('renders the given markdown content as rich text', () => {
+  it('renders the given markdown content as rich text, with the "## Ngữ pháp N" heading shown only as the accordion trigger label, not duplicated in the section body', () => {
     render(<GrammarMarkdownEditor value={'## Ngữ pháp 1: Test\n\n**CHỨC NĂNG**\n\nGiải thích.'} onChange={vi.fn()} />)
-    expect(screen.getByText('Ngữ pháp 1: Test')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Test' })).toBeInTheDocument()
+    expect(screen.queryByText('Ngữ pháp 1: Test')).not.toBeInTheDocument()
     expect(screen.getByText('CHỨC NĂNG')).toBeInTheDocument()
     expect(screen.getByText('Giải thích.')).toBeInTheDocument()
   })

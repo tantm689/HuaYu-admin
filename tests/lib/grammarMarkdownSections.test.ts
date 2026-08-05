@@ -26,6 +26,25 @@ describe('splitGrammarMarkdown', () => {
     expect(sections[1].markdown).toContain('Giải thích 2.')
   })
 
+  // The accordion trigger already shows `title` - leaving the "## Ngữ pháp
+  // N: ..." heading line inside `markdown` too would render the same text
+  // again as a large duplicate H2 right inside the section's own content.
+  it('strips the "## Ngữ pháp N" heading line out of markdown, keeping it only in the separate heading field', () => {
+    const markdown = '## Ngữ pháp 1: Cách đặt câu hỏi\n\n**CHỨC NĂNG**\n\nGiải thích.'
+    const sections = splitGrammarMarkdown(markdown)
+    expect(sections).toHaveLength(1)
+    expect(sections[0].heading).toBe('## Ngữ pháp 1: Cách đặt câu hỏi')
+    expect(sections[0].markdown).not.toContain('## Ngữ pháp')
+    expect(sections[0].markdown).toBe('**CHỨC NĂNG**\n\nGiải thích.')
+  })
+
+  it('leaves heading null for the unlabeled leading section', () => {
+    const markdown = 'Ghi chú chung.\n\n## Ngữ pháp 1: Test\n\nNội dung.'
+    const sections = splitGrammarMarkdown(markdown)
+    expect(sections[0].heading).toBeNull()
+    expect(sections[1].heading).toBe('## Ngữ pháp 1: Test')
+  })
+
   it('keeps content before the first heading as a single unlabeled leading section', () => {
     const markdown = 'Ghi chú chung.\n\n## Ngữ pháp 1: Test\n\nNội dung.'
     const sections = splitGrammarMarkdown(markdown)
@@ -91,9 +110,9 @@ describe('joinGrammarMarkdown', () => {
 
   it('skips empty sections rather than leaving stray blank-line gaps', () => {
     const sections = [
-      { id: 'a', title: 'A', markdown: '## Ngữ pháp 1: A\n\nX' },
-      { id: 'b', title: '', markdown: '' },
-      { id: 'c', title: 'C', markdown: '## Ngữ pháp 2: C\n\nZ' },
+      { id: 'a', title: 'A', heading: '## Ngữ pháp 1: A', markdown: 'X' },
+      { id: 'b', title: '', heading: null, markdown: '' },
+      { id: 'c', title: 'C', heading: '## Ngữ pháp 2: C', markdown: 'Z' },
     ]
     const joined = joinGrammarMarkdown(sections)
     expect(joined).toBe('## Ngữ pháp 1: A\n\nX\n\n## Ngữ pháp 2: C\n\nZ')
