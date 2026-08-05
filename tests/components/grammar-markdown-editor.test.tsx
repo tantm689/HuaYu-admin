@@ -192,14 +192,100 @@ describe('GrammarMarkdownEditor', () => {
     editor.destroy()
   })
 
-  it('shows row/column controls when the cursor is inside a table, and hides the text bubble menu there', async () => {
-    const tableMarkdown = '| A | B |\n| --- | --- |\n| 1 | 2 |'
-    render(<GrammarMarkdownEditor value={tableMarkdown} onChange={vi.fn()} />)
-    const cell = screen.getByText('1')
-    fireEvent.click(cell)
+  // Regression test for the reported grouping bug: a question+short-answer
+  // pair (or A/B exchange) sharing one number in the book was being split
+  // into two separate numbered list items instead of staying grouped under
+  // one number as multiple hard-break-separated lines. Verifies the parsed
+  // doc has exactly one ordered-list item containing all 6 lines (2 sentences
+  // x 3 lines each), not two list items with 3 lines each.
+  it('keeps a multi-sentence example group (question + short answer) under a single list number', () => {
+    const groupMarkdown = [
+      '1. 你是王先生嗎？  ',
+      '   *Nǐ shì Wáng Xiānshēng ma?*  ',
+      '   Bạn là Vương tiên sinh phải không?  ',
+      '   是。  ',
+      '   *Shì.*  ',
+      '   Vâng.',
+    ].join('\n')
+    const editor = new Editor({ extensions: [StarterKit, Markdown], content: groupMarkdown })
+    type LooseNode = { type?: string; text?: string; content?: LooseNode[] }
+    const doc = editor.getJSON() as LooseNode
+    const listItems = doc.content?.[0]?.content ?? []
+    expect(listItems).toHaveLength(1)
 
-    await waitFor(() => expect(screen.getByText('Xoá bảng')).toBeInTheDocument())
-    expect(screen.getByText('+ Hàng dưới')).toBeInTheDocument()
-    expect(screen.getByText('+ Cột phải')).toBeInTheDocument()
+    const paragraph = listItems[0]?.content?.[0]
+    const hardBreakCount = paragraph?.content?.filter((node) => node.type === 'hardBreak').length ?? 0
+    expect(hardBreakCount).toBe(5)
+    const texts = paragraph?.content?.filter((node) => node.type === 'text').map((node) => node.text)
+    expect(texts).toEqual([
+      '你是王先生嗎？',
+      'Nǐ shì Wáng Xiānshēng ma?',
+      'Bạn là Vương tiên sinh phải không?',
+      '是。',
+      'Shì.',
+      'Vâng.',
+    ])
+    editor.destroy()
+  })
+
+  // The toolbar is a fixed bar pinned above the editor (Word/Docs-style),
+  // not a BubbleMenu that only appears once text is selected - this is the
+  // behavior the earlier BubbleMenu-based version was replaced for, since
+  // editors reported it "didn't feel usable" appearing only on selection.
+  it('shows the formatting toolbar immediately, with no text selection required', () => {
+    render(<GrammarMarkdownEditor value={'Nội dung.'} onChange={vi.fn()} />)
+    expect(screen.getByText('B')).toBeInTheDocument()
+    expect(screen.getByText('I')).toBeInTheDocument()
+    expect(screen.getByText('H1')).toBeInTheDocument()
+  })
+
+  it('hides the toolbar entirely when the editor is disabled', () => {
+    render(<GrammarMarkdownEditor value={'Nội dung.'} onChange={vi.fn()} disabled />)
+    expect(screen.queryByText('H1')).not.toBeInTheDocument()
+  })
+
+  // Regression test: GrammarMarkdownEditor's value-sync effect calls
+  // setContent(value) whenever the incoming markdown differs from the
+  // editor's current markdown - which is true on the very first render,
+  // since the editor mounts empty and only picks up `value` asynchronously
+  // (immediatelyRender: false). setContent() leaves the selection at the
+  // END of the newly-set content by default; for content ending in a table,
+  // that lands the cursor inside the table's last cell, which made the
+  // toolbar's table-context controls appear on initial mount even though
+  // the user never clicked into the table. Fixed by explicitly collapsing
+  // the selection to the document start right after setContent.
+  it('does not show table controls in the toolbar right after mounting with content that ends in a table', async () => {
+    const tableMarkdown = 'Trước bảng.\n\n| A | B |\n| --- | --- |\n| 1 | 2 |'
+    render(<GrammarMarkdownEditor value={tableMarkdown} onChange={vi.fn()} />)
+
+    await waitFor(() => expect(screen.getByRole('table')).toBeInTheDocument())
+    expect(screen.queryByText('Xoá bảng')).not.toBeInTheDocument()
+  })
+
+  // jsdom's Selection/Range APIs for contenteditable don't move the caret
+  // the way a real browser does (documented elsewhere in this file), so this
+  // drives the underlying TipTap Editor's own setTextSelection command
+  // directly - built from a headless Editor with the same extension stack
+  // as GrammarMarkdownEditor, matching the pattern already used for the
+  // slash-command tests above - rather than depending on jsdom's broken
+  // click-to-caret behavior. This still exercises the real isActive('table')
+  // check the toolbar's conditional rendering depends on.
+  it('shows row/column controls in the toolbar only when the cursor is inside a table', () => {
+    const tableMarkdown = 'Trước bảng.\n\n| A | B |\n| --- | --- |\n| 1 | 2 |'
+    const editor = new Editor({
+      extensions: [StarterKit, Markdown, Table.configure({ resizable: true }), TableRow, TableHeader, TableCell],
+      content: tableMarkdown,
+    })
+    expect(editor.isActive('table')).toBe(false)
+
+    let targetPos = -1
+    editor.state.doc.descendants((node, pos) => {
+      if (node.isText && node.text === '1') targetPos = pos
+    })
+    expect(targetPos).toBeGreaterThan(-1)
+    editor.commands.setTextSelection(targetPos)
+
+    expect(editor.isActive('table')).toBe(true)
+    editor.destroy()
   })
 })

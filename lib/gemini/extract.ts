@@ -27,6 +27,16 @@ Chỉ trích xuất đúng 3 phần sau, bỏ qua mọi nội dung khác:
    QUAN TRỌNG về bảng dữ liệu tham khảo (KHÁC với câu ví dụ đánh số - đây là bảng liệt kê từ vựng/công thức/danh mục, ví dụ bảng từ chỉ vị trí kèm hậu tố 面/邊, hoặc bảng địa danh theo nhóm): TUYỆT ĐỐI KHÔNG BỎ QUA loại bảng này - viết lại TOÀN BỘ nội dung bảng thành danh sách gạch đầu dòng Markdown ("- <mục 1>", "- <mục 2>"...) ngay trong đoạn giải thích của đề mục/ý chứa bảng đó, giữ đúng cặp chữ Hán - nghĩa/phiên âm đi kèm trong bảng gốc. Nếu bảng gốc có từ 3 cột trở lên hoặc nhiều hàng lặp lại cùng cấu trúc, CÓ THỂ dùng cú pháp bảng Markdown (| cột 1 | cột 2 |...) thay vì danh sách gạch đầu dòng nếu điều đó thể hiện rõ ràng hơn - với bảng chỉ 2 cột đơn giản (ví dụ cặp chữ Hán-nghĩa), giữ nguyên danh sách gạch đầu dòng như hiện tại.
    QUAN TRỌNG về nội dung bị ngắt qua trang: một điểm ngữ pháp (đặc biệt đề mục cuối cùng như "Cách dùng"/"Sử dụng") có thể bị TRÀN SANG TRANG SAU, kể cả khi trang sau đó bắt đầu bằng ảnh bìa/tiêu đề của một bài học KHÁC chen giữa. PHẢI đọc lướt qua TẤT CẢ các trang được cung cấp, kể cả sau một ảnh bìa xen giữa, để tìm phần nội dung tiếp nối của điểm ngữ pháp đang dở trước khi coi là đã hết.
    QUAN TRỌNG về bảng ví dụ nhiều cột: mỗi số thứ tự (①②③ hoặc 1,2,3) trong bảng ví dụ có thể đi kèm NHIỀU CÂU trên cùng một hàng (ví dụ 1 cột câu khẳng định + 1 cột câu nghi vấn tương ứng). MỖI CÂU trong hàng đó - dù chung một số thứ tự - PHẢI là một khối 3-dòng ví dụ RIÊNG BIỆT, không nối/gộp nhiều câu khác nhau vào chung một khối.
+   QUAN TRỌNG về cụm ví dụ hỏi-đáp/nhiều câu liên quan dùng CHUNG một số thứ tự của sách (ví dụ mẫu "① 你是王先生嗎？ 是。" gồm câu hỏi VÀ câu trả lời ngắn cùng đứng sau số ①, hoặc mẫu hội thoại "A: ... B: ..." cùng đứng sau một số): PHẢI giữ các câu trong cùng cụm đó CHUNG một số thứ tự Markdown duy nhất, TUYỆT ĐỐI KHÔNG tách mỗi câu trong cụm thành một số thứ tự Markdown riêng dù mỗi câu vẫn là một khối 3-dòng độc lập (Hán/pinyin/nghĩa Việt của riêng câu đó). Cụ thể: số thứ tự Markdown ("1. ") chỉ viết MỘT LẦN ở khối 3-dòng đầu tiên của cụm; các khối 3-dòng còn lại trong CÙNG cụm đó thụt lề ngang bằng với khối đầu tiên (không có số thứ tự riêng, không phải "2. "/"3." mới), và giữa các khối trong cùng một cụm KHÔNG để dòng trắng (chỉ để dòng trắng khi bắt đầu cụm ví dụ tiếp theo, lúc đó số thứ tự Markdown mới tăng lên "2. "). Ví dụ đúng cho mẫu câu hỏi + câu trả lời ngắn cùng số ①:
+     \`\`\`
+     1. 你是王先生嗎？␣␣
+        *Nǐ shì Wáng Xiānshēng ma?*␣␣
+        Bạn là Vương tiên sinh phải không?␣␣
+        是。␣␣
+        *Shì.*␣␣
+        Vâng.
+     \`\`\`
+     Nếu một cụm ví dụ trong sách CHỈ có một câu duy nhất (không phải hỏi-đáp/đối đáp nhiều câu), vẫn viết bình thường theo khối 3-dòng như các mục trên, mỗi cụm một số thứ tự riêng.
 
 Trả về đúng theo JSON schema đã cung cấp, không thêm giải thích ngoài JSON.`
 
