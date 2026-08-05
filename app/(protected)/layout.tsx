@@ -1,4 +1,5 @@
 import Link from "next/link"
+import SignOutButton from "@/components/sign-out-button"
 
 export default function ProtectedLayout({
   children,
@@ -23,6 +24,7 @@ export default function ProtectedLayout({
           >
             Books
           </Link>
+          <SignOutButton />
         </nav>
       </header>
       <main className="flex-1">{children}</main>
