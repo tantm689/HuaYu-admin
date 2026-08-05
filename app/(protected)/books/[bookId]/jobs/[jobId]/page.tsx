@@ -20,6 +20,7 @@ import { moveItem } from "@/lib/moveItem"
 import { BackLink } from "@/components/back-link"
 import { EditableText } from "@/components/editable-text"
 import GrammarMarkdownEditor from "@/components/grammar-markdown-editor"
+import { splitGrammarMarkdown } from "@/lib/grammarMarkdownSections"
 import { DialogueLineBlock } from "@/components/dialogue-line-block"
 import { VocabRow } from "@/components/vocab-row"
 import type { ExtractionJob, JobStatus } from "@/lib/db/types"
@@ -662,7 +663,9 @@ export default function JobReviewPage({ params }: Props) {
                   <TabsTab value="vocabulary">
                     Từ vựng ({data.dialogues.reduce((sum, d) => sum + d.vocabulary.length, 0)})
                   </TabsTab>
-                  <TabsTab value="grammar">Ngữ pháp</TabsTab>
+                  <TabsTab value="grammar">
+                    Ngữ pháp ({splitGrammarMarkdown(data.grammarMarkdown ?? "").filter((s) => s.heading !== null).length})
+                  </TabsTab>
                 </TabsList>
 
                 <TabsPanel value="dialogues">

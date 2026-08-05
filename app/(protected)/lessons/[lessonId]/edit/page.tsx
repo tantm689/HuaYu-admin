@@ -19,6 +19,7 @@ import { LessonStatusControls } from "@/app/(protected)/lessons/[lessonId]/statu
 import { BackLink } from "@/components/back-link"
 import { BlockActions } from "@/components/block-actions"
 import GrammarMarkdownEditor from "@/components/grammar-markdown-editor"
+import { splitGrammarMarkdown } from "@/lib/grammarMarkdownSections"
 import { DialogueLineBlock } from "@/components/dialogue-line-block"
 import { VocabRow } from "@/components/vocab-row"
 import type { LessonFullView } from "@/lib/db/getLessonFull"
@@ -925,7 +926,9 @@ export default function LessonEditPage({ params }: Props) {
           <TabsTab value="vocabulary">
             Từ vựng ({data.dialogues.reduce((sum, d) => sum + d.vocabulary.length, 0)})
           </TabsTab>
-          <TabsTab value="grammar">Ngữ pháp</TabsTab>
+          <TabsTab value="grammar">
+            Ngữ pháp ({splitGrammarMarkdown(data.grammarMarkdown ?? "").filter((s) => s.heading !== null).length})
+          </TabsTab>
           <TabsTab value="audio">
             Audio ({data.dialogues.reduce((sum, d) => sum + d.vocabulary.filter((v) => v.audioUrl).length, 0)})
           </TabsTab>
