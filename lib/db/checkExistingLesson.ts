@@ -7,7 +7,6 @@ export interface ExistingLessonSummary {
   status: string
   dialogueCount: number
   vocabularyCount: number
-  grammarPointCount: number
 }
 
 // Used both to warn the admin before an overwrite-on-import and by the
@@ -27,10 +26,9 @@ export async function checkExistingLesson(bookId: string, lessonNo: number): Pro
 
   if (!lesson) return null
 
-  const [{ count: dialogueCount }, { count: vocabularyCount }, { count: grammarPointCount }] = await Promise.all([
+  const [{ count: dialogueCount }, { count: vocabularyCount }] = await Promise.all([
     supabase.from('dialogues').select('id', { count: 'exact', head: true }).eq('lesson_id', lesson.id),
     supabase.from('vocabulary').select('id', { count: 'exact', head: true }).eq('lesson_id', lesson.id),
-    supabase.from('grammar_points').select('id', { count: 'exact', head: true }).eq('lesson_id', lesson.id),
   ])
 
   return {
@@ -40,6 +38,5 @@ export async function checkExistingLesson(bookId: string, lessonNo: number): Pro
     status: lesson.status,
     dialogueCount: dialogueCount ?? 0,
     vocabularyCount: vocabularyCount ?? 0,
-    grammarPointCount: grammarPointCount ?? 0,
   }
 }

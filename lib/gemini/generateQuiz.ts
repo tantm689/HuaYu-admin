@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai'
+import { ZodError, type ZodType } from 'zod'
 import type { ExtractionResult } from './schema'
 import {
   Part1QuestionSchema,
@@ -8,6 +9,28 @@ import {
   type Part1Question,
   type Part2Question,
 } from './quizSchema'
+
+// A bare ZodError's .message is just the raw issues array
+// (`[{"code":"invalid_type","path":["choices"],...}]`) with no indication
+// of WHICH of the 15 questions failed or what type it was - exactly the
+// unreadable error this was built to fix. Re-parses each question
+// individually so a failure can be attributed to its index/type before
+// rethrowing, instead of losing that context in a single .map() call.
+function parseQuestions<T>(questions: unknown[], schema: ZodType<T>): T[] {
+  return questions.map((q, index) => {
+    const result = schema.safeParse(q)
+    if (result.success) return result.data
+    const type = (q as { type?: unknown })?.type
+    const typeLabel = typeof type === 'string' ? type : 'không xác định'
+    throw new Error(
+      `Câu hỏi thứ ${index + 1} (dạng "${typeLabel}") thiếu/sai dữ liệu: ${describeZodIssues(result.error)}`
+    )
+  })
+}
+
+function describeZodIssues(error: ZodError): string {
+  return error.issues.map((issue) => `${issue.path.join('.')} - ${issue.message}`).join('; ')
+}
 
 // Separate from gemini-3.6-flash (used by lib/gemini/extract.ts for PDF
 // extraction) so quiz generation draws from its own daily request quota.
@@ -25,7 +48,7 @@ function lessonDataText(result: ExtractionResult): string {
   return JSON.stringify({
     lesson: result.lesson,
     dialogues: result.dialogues,
-    grammarPoints: result.grammarPoints,
+    grammarMarkdown: result.grammarMarkdown,
   })
 }
 
@@ -33,26 +56,36 @@ const PART1_PROMPT = `Bạn là công cụ sinh câu hỏi luyện tập (quiz) 
 
 Sinh đúng 15 câu hỏi thuộc 3 dạng nhận biết từ vựng/phát âm, MỖI dạng đúng 5 câu, "part" luôn là 1:
 
-1. "pinyin_choice": cho 1 từ chữ Hán, hỏi pinyin đúng (hoặc ngược lại cho pinyin, hỏi chữ Hán đúng) trong 4 lựa chọn. Field: prompt (chữ Hán hoặc pinyin để hỏi), choices (4 lựa chọn), correctIndex (0-3).
-2. "listening_choice": chỉ được chọn từ vựng ĐÃ CÓ audioUrl trong dữ liệu vocabulary được cung cấp (KHÔNG được chọn từ chưa có audioUrl, và KHÔNG được tự bịa audioUrl). Field: audioUrl (lấy nguyên văn từ dữ liệu), choices (4 lựa chọn nghĩa hoặc chữ Hán), correctIndex.
-3. "tone_choice": cho 1 từ, hiển thị chữ Hán + pinyin KHÔNG dấu thanh điệu, hỏi thanh điệu đúng trong 4 biến thể pinyin có dấu khác nhau. Field: wordZh, pinyinNoTone, choices (4 biến thể pinyin có dấu), correctIndex.
+1. "pinyin_choice": cho 1 từ chữ Hán, hỏi pinyin đúng (hoặc ngược lại cho pinyin, hỏi chữ Hán đúng) trong 4 lựa chọn - cả từ được hỏi lẫn 4 lựa chọn ĐỀU PHẢI lấy từ đúng bảng từ vựng của bài (KHÔNG tự bịa từ ngoài bài). 3 lựa chọn sai (nhiễu) PHẢI là pinyin/chữ Hán của CÁC TỪ VỰNG KHÁC cũng có trong bài (không phải chuỗi ký tự vô nghĩa tự chế) - ưu tiên chọn nhiễu là những từ có phát âm hoặc mặt chữ dễ nhầm với từ đúng (ví dụ gần âm, cùng bộ thủ) để câu hỏi thực sự kiểm tra khả năng phân biệt, không phải chỉ loại trừ hiển nhiên. Field: prompt (chữ Hán hoặc pinyin để hỏi), choices (4 lựa chọn), correctIndex (0-3).
+2. "listening_choice": chỉ được chọn từ vựng ĐÃ CÓ audioUrl trong dữ liệu vocabulary được cung cấp (KHÔNG được chọn từ chưa có audioUrl, và KHÔNG được tự bịa audioUrl). 3 lựa chọn sai PHẢI là nghĩa/chữ Hán của các từ vựng KHÁC có trong bài (kể cả chưa có audioUrl cũng được dùng làm lựa chọn sai, chỉ từ được hỏi mới bắt buộc có audioUrl) - không tự bịa từ ngoài bài làm nhiễu. Field: audioUrl (lấy nguyên văn từ dữ liệu), choices (4 lựa chọn nghĩa hoặc chữ Hán), correctIndex.
+3. "tone_choice": cho 1 từ vựng có trong bài, hiển thị chữ Hán + pinyin KHÔNG dấu thanh điệu, hỏi thanh điệu đúng trong 4 biến thể pinyin có dấu khác nhau. BẮT BUỘC 4 lựa chọn phải CÙNG PHẦN VẦN VÀ PHỤ ÂM với pinyin gốc (giống hệt "pinyinNoTone" khi bỏ dấu), CHỈ khác nhau ở thanh điệu (ví dụ từ "hǎo": 4 lựa chọn phải là 4 trong số hāo/háo/hǎo/hào - KHÔNG được đưa vào một pinyin có phần vần/phụ âm khác như "hōu" hay "hé") - đây là điều kiện bắt buộc để câu hỏi thực sự kiểm tra nhận biết thanh điệu, không phải nhận biết từ khác hẳn. Nếu từ đó chỉ có ít hơn 4 thanh điệu hợp lệ trong tiếng Trung, có thể dùng thanh nhẹ (không dấu) làm 1 trong các lựa chọn. Field: wordZh, pinyinNoTone, choices (4 biến thể pinyin có dấu, cùng phần vần/phụ âm), correctIndex.
 
-QUAN TRỌNG: mỗi câu hỏi PHẢI có "part" (luôn là 1), "type", "order" (thứ tự liên tục 1-15). Chỉ dùng nội dung có trong dữ liệu được cung cấp bên dưới, KHÔNG tự sáng tác từ vựng ngoài phạm vi bài học này.
+QUAN TRỌNG: mỗi câu hỏi PHẢI có "part" (luôn là 1), "type", "order" (thứ tự liên tục 1-15), VÀ BẮT BUỘC PHẢI CÓ "choices" (đúng 4 lựa chọn) và "correctIndex" (0-3) - cả 3 dạng câu hỏi ở trên (pinyin_choice, listening_choice, tone_choice) ĐỀU dùng chung 2 field này, TUYỆT ĐỐI KHÔNG được bỏ trống hay để thiếu "choices"/"correctIndex" ở bất kỳ câu nào dù là dạng nào - thiếu 1 trong 2 field này ở bất kỳ câu nào sẽ khiến toàn bộ 15 câu bị từ chối. Chỉ dùng nội dung có trong dữ liệu được cung cấp bên dưới, KHÔNG tự sáng tác từ vựng ngoài phạm vi bài học này.
+
+QUAN TRỌNG về việc chép chính xác chữ Hán: mọi trường chữ Hán ("prompt" khi hỏi bằng chữ Hán, "wordZh", "choices" khi lựa chọn là chữ Hán) PHẢI là chữ Hán 100% lấy nguyên văn từ dữ liệu được cung cấp - TUYỆT ĐỐI KHÔNG được lẫn bất kỳ chữ cái Latin/tiếng Anh/tiếng Việt nào vào giữa hoặc vào cuối một chuỗi chữ Hán (ví dụ không được viết "你好嗎 ban" hay "謝謝 cảm ơn" - nếu muốn thêm nghĩa tiếng Việt thì đó phải là một lựa chọn "choices" HOÀN TOÀN riêng bằng tiếng Việt, không trộn chung với chữ Hán trong cùng một chuỗi). Sau khi viết xong mỗi field chữ Hán, tự kiểm tra lại xem có ký tự Latin nào lẫn vào không trước khi trả kết quả.
 
 Trả về đúng theo JSON schema đã cung cấp, không thêm giải thích ngoài JSON.`
 
-const PART2_PROMPT = `Bạn là công cụ sinh câu hỏi luyện tập (quiz) cho 1 bài học tiếng Trung, dựa trên nội dung bài khoá/từ vựng/ngữ pháp ĐÃ ĐƯỢC DUYỆT dưới đây (không phải trích xuất từ ảnh, mà từ dữ liệu JSON đã có sẵn).
+const PART2_PROMPT = `Bạn là một giáo viên tiếng Trung giàu kinh nghiệm, đang tự tay biên soạn 15 câu hỏi luyện tập (quiz) cho 1 bài học, dựa trên nội dung bài khoá/từ vựng/ngữ pháp ĐÃ ĐƯỢC DUYỆT dưới đây (không phải trích xuất từ ảnh, mà từ dữ liệu JSON đã có sẵn). Mục tiêu là bộ câu hỏi CHẤT LƯỢNG THẬT SỰ - tự nhiên, logic, hợp lý - không phải chỉ đúng định dạng kỹ thuật.
 
 Sinh đúng 15 câu hỏi thuộc 3 dạng vận dụng câu/ngữ pháp, MỖI dạng đúng 5 câu, "part" luôn là 2:
 
 1. "matching": MỖI câu hỏi dạng này tự chứa đúng 5 cặp chữ Hán - nghĩa tiếng Việt để nối (không phải chọn từ toàn bộ từ vựng bài). Field: pairs (mảng đúng 5 object {left: chữ Hán, right: nghĩa tiếng Việt}).
-2. "fill_blank": LẤY NGUYÊN VĂN 1 câu ví dụ ngữ pháp hoặc câu bài khoá có sẵn trong dữ liệu (KHÔNG tự sáng tác câu mới, KHÔNG sửa đổi câu gốc, KHÁC với 5 câu gốc đã dùng cho "sentence_order" ở mục 3 - không lấy trùng câu), đục 1 TỪ CHỨC NĂNG NGỮ PHÁP đã xuất hiện trong bài (trợ từ, phó từ, liên từ, giới từ - ví dụ 了/的/在/就/才/也/都/跟/和/因為/所以...) ra khỏi câu, đánh dấu chỗ trống bằng "___". TUYỆT ĐỐI KHÔNG đục danh từ/động từ nội dung chính của câu (như tên người, đồ vật, hành động chính) - việc đục từ chức năng ngữ pháp bắt buộc người học phải hiểu ĐÚNG NGỮ PHÁP mới chọn được, không phải đoán theo nghĩa từ.
-   BẮT BUỘC lấy kèm câu NGAY TRƯỚC câu bị đục trong cùng đoạn hội thoại/ví dụ (nguyên văn, không sửa đổi) làm ngữ cảnh - field contextSentence. Đây là điều kiện BẮT BUỘC để đảm bảo chỉ có ĐÚNG 1 đáp án đúng: nhiều phó từ/trợ từ (ví dụ 不 và 也) nếu chỉ xét riêng câu bị đục thì ĐỀU đúng ngữ pháp, chỉ có 1 trong số đó khớp đúng NGHĨA khi đọc liền mạch với câu trước - PHẢI tự kiểm tra lại: đọc contextSentence + sentence (với từng lựa chọn điền vào chỗ trống) liền mạch như một đoạn hội thoại thật, chỉ giữ lại lựa chọn nào khiến đoạn đó hợp lý làm đáp án đúng, 3 lựa chọn còn lại phải khiến đoạn đọc lên vô lý/sai nghĩa khi đặt cạnh câu ngữ cảnh (dù bản thân chúng vẫn đúng ngữ pháp nếu xét câu bị đục một mình). Nếu câu bị đục là câu ĐẦU TIÊN của đoạn hội thoại/ví dụ (không có câu nào đứng trước), chọn một câu bài khoá/ví dụ khác trong dữ liệu có câu đứng trước để dùng thay.
-   Mỗi câu dạng này BẮT BUỘC PHẢI có đủ 4 field sau, không được thiếu field nào: contextSentence (câu ngay trước, nguyên văn), sentence (câu có "___"), choices (đúng 4 lựa chọn), correctIndex (0-3).
-3. "sentence_order": LẤY NGUYÊN VĂN 1 câu bài khoá hoặc câu ví dụ có sẵn trong dữ liệu (KHÔNG tự sáng tác câu mới, KHÁC với 5 câu gốc sẽ dùng cho "fill_blank" ở mục 2 - không lấy trùng câu), ƯU TIÊN CHỌN CÂU CÓ ÍT NHẤT 5-6 THÀNH PHẦN/CỤM TỪ để xáo trộn (TRÁNH câu ngắn dưới 5 cụm từ, vì xáo trộn ít cụm từ có thể đoán ra ngay không cần hiểu ngữ pháp trật tự từ) - nếu không tìm được câu đủ dài, BẮT BUỘC ghép 2-3 câu liên tiếp trong cùng đoạn hội thoại thành 1 câu ghép dài hơn để xáo trộn (giữ nguyên văn từng câu con, không tự viết thêm). Xáo trộn ở mức từ/cụm từ nhỏ (2-3 chữ mỗi phần tử trong "words") thay vì cả cụm lớn, để việc sắp xếp lại thực sự đòi hỏi hiểu ngữ pháp trật tự từ, không phải chỉ ghép 2-3 khối lớn theo trực giác. BẮT BUỘC giữ nguyên dấu câu cuối câu gốc (。/？/！) và gắn liền dấu đó vào phần tử CUỐI CÙNG trong "words" (không tách dấu câu thành 1 phần tử riêng) - ví dụ câu gốc "你去學校。" xáo trộn thành words=["你","學校。","去"] (dấu 。 dính liền vào "學校" vì đó là cụm cuối câu), correctOrder=[0,2,1].
-   Mỗi câu dạng này BẮT BUỘC PHẢI có đủ 2 field sau, không được thiếu field nào: words (mảng các từ/cụm từ đã xáo trộn, phần tử ở vị trí cuối câu gốc mang theo dấu câu), correctOrder (mảng index để sắp xếp lại "words" theo đúng thứ tự câu gốc, ví dụ nếu words=["thoại","hội","Bài"] và câu đúng là "Bài hội thoại" thì correctOrder=[2,1,0]).
 
-QUAN TRỌNG: mỗi câu hỏi PHẢI có "part" (luôn là 2), "type", "order" (thứ tự liên tục 1-15), và ĐẦY ĐỦ các field bắt buộc của đúng dạng đó theo mô tả ở trên - thiếu field sẽ khiến toàn bộ kết quả bị từ chối. Chỉ dùng nội dung có trong dữ liệu được cung cấp bên dưới, KHÔNG tự sáng tác câu/từ vựng ngoài phạm vi bài học này.
+2. "fill_blank": LẤY NGUYÊN VĂN 1 câu ví dụ ngữ pháp hoặc câu bài khoá có sẵn trong dữ liệu (KHÔNG tự sáng tác câu mới, KHÔNG sửa đổi câu gốc, KHÁC với 5 câu đã dùng cho "sentence_order" - không lấy trùng câu VÀ không lấy trùng/gần giống câu đã dùng cho 1 câu "fill_blank" khác trong 5 câu này, kể cả khi vị trí đục lỗ khác nhau - mỗi câu trong 5 câu phải đến từ một câu GỐC khác nhau), đục 1 TỪ CHỨC NĂNG NGỮ PHÁP (trợ từ, phó từ, liên từ, giới từ - ví dụ 了/的/在/就/才/也/都/跟/和/因為/所以/不...) ra khỏi câu, đánh dấu chỗ trống bằng "___". KHÔNG đục danh từ/động từ nội dung chính (tên người, đồ vật, hành động chính).
+   TUYỆT ĐỐI KHÔNG đục từ nằm bên trong một CỤM CỐ ĐỊNH mà bản thân cụm đó không thể thay bằng từ khác (ví dụ "要不要", "是不是", "有沒有", "好不好" - những cụm "X不X"/"X沒X" là một khối cố định gắn liền với động từ/tính từ đứng trước nó, không phải một vị trí ngữ pháp có thể điền nhiều lựa chọn khác nhau vào). Chỉ đục từ ở những vị trí mà về mặt ngữ pháp, NHIỀU từ chức năng khác nhau đều có thể đứng được (chỉ khác nhau về ý nghĩa/cách dùng) - đó mới là thứ thật sự kiểm tra được kiến thức ngữ pháp.
+   MỖI câu phải có ĐÚNG 1 đáp án đúng duy nhất, không mập mờ. Tự đọc lại toàn bộ 4 lựa chọn đã điền vào câu, xét trong ngữ cảnh (kèm câu ngay trước nó) - nếu từ 2 lựa chọn trở lên đều đọc lên hợp lý, PHẢI đổi câu/đổi chỗ đục khác cho tới khi chỉ còn đúng 1 lựa chọn hợp lý. 4 lựa chọn nên là các từ CÙNG LOẠI/CÙNG CHỨC NĂNG ngữ pháp (ví dụ đều là phó từ phủ định-khẳng định, hoặc đều là trợ từ nghi vấn cuối câu) để việc phân biệt thực sự kiểm tra hiểu ngữ pháp, không phải đoán mò giữa những từ hoàn toàn khác loại.
+   BẮT BUỘC ghép kèm câu NGAY TRƯỚC câu bị đục (nguyên văn, không sửa đổi) làm ngữ cảnh - viết chung vào MỘT chuỗi "sentence" DUY NHẤT với câu bị đục (câu ngữ cảnh trước, rồi đến câu có "___"), KHÔNG tách thành 2 field riêng, chỉ có đúng 1 field "sentence" chứa toàn bộ đoạn hiển thị cho học viên. QUAN TRỌNG về cách nối 2 câu trong "sentence": nếu câu ngữ cảnh và câu bị đục là lời của HAI người nói KHÁC NHAU trong hội thoại gốc (ví dụ A hỏi, B trả lời), PHẢI đặt 1 ký tự xuống dòng "\\n" giữa 2 câu để phân biệt rõ 2 lượt nói - TUYỆT ĐỐI KHÔNG viết dính liền 2 câu của 2 người khác nhau trên cùng một dòng, sẽ gây khó đọc/hiểu nhầm là 1 câu. Nếu câu ngữ cảnh và câu bị đục là lời của CÙNG một người nói liên tiếp (ví dụ cùng một câu văn/đoạn văn liền mạch, hoặc cùng người nói 2 câu liên tiếp), nối bằng dấu cách bình thường, không cần "\\n". Nếu câu bị đục là câu ĐẦU TIÊN của đoạn (không có câu đứng trước), chọn câu khác trong dữ liệu có câu đứng trước để dùng thay.
+   Mỗi câu dạng này cần đủ field: sentence (câu ngữ cảnh nối câu có "___" theo đúng quy tắc xuống dòng ở trên, nguyên văn), choices (đúng 4 lựa chọn), correctIndex (0-3).
+
+3. "sentence_order": LẤY NGUYÊN VĂN 1 câu bài khoá hoặc câu ví dụ có sẵn trong dữ liệu (KHÔNG tự sáng tác câu mới, KHÁC với 5 câu đã dùng cho "fill_blank" - không lấy trùng câu, VÀ mỗi câu trong 5 câu "sentence_order" này PHẢI đến từ một câu GỐC khác nhau, không lấy 2 câu gần giống nhau chỉ khác 1-2 từ), ưu tiên câu có ít nhất 5-6 thành phần/cụm từ để xáo trộn (tránh câu ngắn dưới 5 cụm từ, dễ đoán ra ngay không cần hiểu ngữ pháp) - nếu không tìm được câu đủ dài, ghép 2-3 câu liên tiếp trong cùng đoạn thành 1 câu ghép dài hơn (giữ nguyên văn từng câu con). Xáo trộn ở mức từ/cụm từ nhỏ (2-3 chữ mỗi phần tử) thay vì cả cụm lớn, để việc sắp xếp lại thực sự đòi hỏi hiểu ngữ pháp trật tự từ. Giữ nguyên dấu câu cuối câu gốc (。/？/！), gắn liền dấu đó vào phần tử CUỐI CÙNG trong "words" (không tách dấu câu thành 1 phần tử riêng) - ví dụ câu gốc "你去學校。" xáo trộn thành words=["你","學校。","去"], correctOrder=[0,2,1].
+   Mỗi câu dạng này cần đủ field: words (mảng các từ/cụm từ đã xáo trộn), correctOrder (mảng index để sắp xếp lại "words" theo đúng thứ tự câu gốc).
+
+QUAN TRỌNG về sự đa dạng của 10 câu "fill_blank" + "sentence_order": đây là 10 câu luyện tập ngữ pháp của TOÀN BỘ bài học, không phải chỉ xoay quanh 1-2 điểm ngữ pháp dễ nhất. Trước khi viết câu, đọc lướt qua toàn bộ grammarMarkdown, liệt kê ra các điểm ngữ pháp riêng biệt của bài (mỗi heading "## Ngữ pháp N: ..." là một điểm - không tính các đề mục con "###" bên dưới nó là điểm riêng). Cố gắng để 10 câu này trải đều qua CÀNG NHIỀU điểm ngữ pháp khác nhau CÀNG TỐT, ưu tiên những câu ví dụ có sẵn ngay trong phần giải thích ngữ pháp của đúng điểm đó (chứng tỏ câu thật sự minh hoạ đúng điểm ngữ pháp, không phải một câu bất kỳ tình cờ gần đó) - nhưng KHÔNG cố ép đủ số lượng bằng câu gượng ép, thà lặp lại một điểm ngữ pháp quan trọng còn hơn dùng một câu không thật sự thể hiện rõ ngữ pháp đang muốn kiểm tra. Tự đánh giá: nếu nhìn lại 10 câu mà thấy quá nửa số câu chỉ xoay quanh cùng 1-2 điểm ngữ pháp trong khi bài có nhiều điểm khác chưa được động tới, hãy viết lại cho đa dạng hơn.
+
+QUAN TRỌNG: mỗi câu hỏi PHẢI có "part" (luôn là 2), "type", "order" (thứ tự liên tục 1-15), và đầy đủ các field bắt buộc của đúng dạng đó theo mô tả ở trên - thiếu field sẽ khiến toàn bộ kết quả bị từ chối. Chỉ dùng nội dung có trong dữ liệu được cung cấp bên dưới, KHÔNG tự sáng tác câu/từ vựng ngoài phạm vi bài học này.
+
+QUAN TRỌNG về việc chép chính xác chữ Hán: các field chứa câu/từ chữ Hán ("sentence" của fill_blank, "pairs[].left" của matching, "words" của sentence_order) PHẢI là chữ Hán 100% lấy nguyên văn từ dữ liệu được cung cấp - TUYỆT ĐỐI KHÔNG được tự ý dịch một phần câu sang tiếng Việt hay lẫn bất kỳ chữ cái Latin/tiếng Anh/tiếng Việt nào vào giữa hoặc cuối một câu/cụm từ chữ Hán (ví dụ TUYỆT ĐỐI KHÔNG được viết "謝謝你來接 chúng tớ" - phải giữ nguyên "謝謝你來接我們" như trong dữ liệu gốc, không dịch xen giữa câu). Nghĩa tiếng Việt CHỈ được xuất hiện ở đúng field dành riêng cho nó (ví dụ "pairs[].right" của matching), không bao giờ trộn lẫn vào field chữ Hán. Sau khi viết xong mỗi field chữ Hán, tự kiểm tra lại xem có ký tự Latin/tiếng Việt nào lẫn vào không trước khi trả kết quả.
 
 Trả về đúng theo JSON schema đã cung cấp, không thêm giải thích ngoài JSON.`
 
@@ -126,11 +159,11 @@ async function callGemini(
 // faster, and a failure in one part doesn't require redoing the other.
 export async function generateQuizPart1(result: ExtractionResult): Promise<QuizGenerationResult<Part1Question>> {
   const questions = await callGemini(PART1_PROMPT, lessonDataText(result), GEMINI_QUIZ_PART1_RESPONSE_SCHEMA)
-  return { questions: questions.map((q) => Part1QuestionSchema.parse(q)), usedFallbackModel: false }
+  return { questions: parseQuestions(questions, Part1QuestionSchema), usedFallbackModel: false }
 }
 
 // Generates Part 2 (15 questions: matching/fill_blank/sentence_order).
 export async function generateQuizPart2(result: ExtractionResult): Promise<QuizGenerationResult<Part2Question>> {
   const questions = await callGemini(PART2_PROMPT, lessonDataText(result), GEMINI_QUIZ_PART2_RESPONSE_SCHEMA)
-  return { questions: questions.map((q) => Part2QuestionSchema.parse(q)), usedFallbackModel: false }
+  return { questions: parseQuestions(questions, Part2QuestionSchema), usedFallbackModel: false }
 }

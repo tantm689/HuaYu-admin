@@ -16,6 +16,7 @@ export interface Lesson {
   title_vi: string
   theme: string | null
   objectives: string[]
+  grammar_markdown: string | null
   status: LessonStatus
   created_at: string
 }
@@ -53,40 +54,6 @@ export interface VocabularyEntry {
   pinyin: string | null
   meaning_vi: string | null
   audio_url: string | null
-}
-
-export interface GrammarPoint {
-  id: string
-  lesson_id: string
-  order: number
-  title_vi: string | null
-}
-
-export interface GrammarSubPoint {
-  id: string
-  grammar_point_id: string
-  order: number
-  label: string
-  title_vi: string | null
-}
-
-export interface GrammarSection {
-  id: string
-  grammar_point_id: string | null
-  grammar_sub_point_id: string | null
-  parent_section_id: string | null
-  order: number
-  label: string
-  content: string | null
-}
-
-export interface GrammarExample {
-  id: string
-  grammar_section_id: string
-  order: number
-  text_zh: string
-  pinyin: string | null
-  translation_vi: string | null
 }
 
 export interface ExtractionJob {

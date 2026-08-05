@@ -127,7 +127,7 @@ function baseLesson() {
         ],
       },
     ],
-    grammarPoints: [],
+    grammarMarkdown: '',
   }
 }
 
@@ -144,10 +144,10 @@ const fifteenPart2: any[] = Array.from({ length: 15 }, (_, i) => ({
   part: 2,
   type: 'fill_blank',
   order: i + 1,
-  contextSentence: 'x',
-  sentence: 'y___z',
+  sentence: 'x y___z',
   choices: ['a', 'b', 'c', 'd'],
   correctIndex: 0,
+  grammarPointUsed: 'Cách đặt câu hỏi bằng A 不 A',
 }))
 
 describe('generateLessonQuizPart1', () => {
@@ -201,6 +201,20 @@ describe('generateLessonQuizPart2', () => {
     expect(usedFallbackModel).toBe(true)
     expect(deleteEqMock).toHaveBeenCalledWith('lesson-1', 2)
     expect(insertMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('strips the internal grammarPointUsed field out of the persisted payload', async () => {
+    generateQuizPart2Mock.mockResolvedValue({ questions: fifteenPart2, usedFallbackModel: false })
+
+    await generateLessonQuizPart2('lesson-1')
+
+    const insertedRows = insertMock.mock.calls[0][0]
+    expect(insertedRows[0].payload).not.toHaveProperty('grammarPointUsed')
+    expect(insertedRows[0].payload).toEqual({
+      sentence: 'x y___z',
+      choices: ['a', 'b', 'c', 'd'],
+      correctIndex: 0,
+    })
   })
 })
 

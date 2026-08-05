@@ -28,42 +28,6 @@ const DialogueSchema = z.object({
   vocabulary: z.array(VocabularyEntrySchema).default([]),
 })
 
-const GrammarExampleSchema = z.object({
-  order: z.number(),
-  textZh: z.string(),
-  pinyin: nullableString,
-  translationVi: nullableString,
-})
-
-const GrammarSectionItemSchema = z.object({
-  order: z.number(),
-  label: z.string(),
-  content: nullableString,
-  examples: z.array(GrammarExampleSchema),
-})
-
-const GrammarSectionSchema = z.object({
-  order: z.number(),
-  label: z.string(),
-  content: nullableString,
-  examples: z.array(GrammarExampleSchema),
-  items: z.array(GrammarSectionItemSchema).default([]),
-})
-
-const GrammarSubPointSchema = z.object({
-  order: z.number(),
-  label: z.string(),
-  titleVi: nullableString,
-  sections: z.array(GrammarSectionSchema),
-})
-
-const GrammarPointSchema = z.object({
-  order: z.number(),
-  titleVi: nullableString,
-  sections: z.array(GrammarSectionSchema),
-  subPoints: z.array(GrammarSubPointSchema).default([]),
-})
-
 const LessonMetaSchema = z.object({
   lessonNo: z.number(),
   titleZh: z.string(),
@@ -75,7 +39,10 @@ const LessonMetaSchema = z.object({
 export const ExtractionResultSchema = z.object({
   lesson: LessonMetaSchema,
   dialogues: z.array(DialogueSchema),
-  grammarPoints: z.array(GrammarPointSchema),
+  // .default('') covers extraction jobs saved before this field existed,
+  // same as objectives above — otherwise safeParse fails and grammarMarkdown
+  // silently becomes undefined.
+  grammarMarkdown: z.string().default(''),
 })
 
 export type ExtractionResult = z.infer<typeof ExtractionResultSchema>
@@ -153,168 +120,11 @@ export const GEMINI_RESPONSE_SCHEMA = {
         required: ['order', 'lines'],
       },
     },
-    grammarPoints: {
-      type: 'array',
-      description: 'Toàn bộ các điểm ngữ pháp trong bài, không bao gồm phần luyện tập/bài tập hỏi-đáp.',
-      items: {
-        type: 'object',
-        properties: {
-          order: { type: 'integer', description: 'Thứ tự của điểm ngữ pháp trong bài, bắt đầu từ 1.' },
-          titleVi: { type: 'string', nullable: true, description: 'Tiêu đề điểm ngữ pháp bằng tiếng Việt nếu có, null nếu không có.' },
-          sections: {
-            type: 'array',
-            description:
-              'Sách chia phần giải thích của điểm ngữ pháp thành nhiều đề mục có nhãn riêng, KHÔNG cố định tuỳ bài/tuỳ quyển (ví dụ "Chức năng", "Cấu trúc", "Khẳng định", "Phủ định", "Câu hỏi", "Thông thường", "Sử dụng", "Cách dùng"...), MỖI đề mục có phần nội dung giải thích và các câu ví dụ RIÊNG của chính nó (không dùng chung ví dụ với đề mục khác). Mỗi đề mục là một phần tử trong mảng này, ĐÚNG THEO THỨ TỰ xuất hiện trong sách. Nếu điểm ngữ pháp có các mục con đánh chữ cái (subPoints) thì để mảng này rỗng (nội dung nằm trong sections riêng của từng mục con, không lặp lại ở đây).',
-            items: {
-              type: 'object',
-              properties: {
-                order: { type: 'integer', description: 'Thứ tự của đề mục, theo đúng thứ tự xuất hiện trong sách, bắt đầu từ 1.' },
-                label: {
-                  type: 'string',
-                  description:
-                    'Nhãn của đề mục, lấy NGUYÊN VĂN như sách ghi (ví dụ "Chức năng", "Cấu trúc", "Khẳng định", "Phủ định", "Câu hỏi", "Thông thường", "Sử dụng", "Cách dùng"...) - không dịch, không đổi tên, không tự tóm gọn.',
-                },
-                content: {
-                  type: 'string',
-                  nullable: true,
-                  description: 'Nội dung giải thích của riêng đề mục này (KHÔNG bao gồm các câu ví dụ, vốn nằm ở "examples"), null nếu đề mục này không có phần giải thích riêng ngoài các ví dụ. Nếu nội dung được sách đánh số thành nhiều ý (1. 2. 3...), giữ nguyên số thứ tự và xuống dòng (\\n\\n) rõ ràng giữa các ý, không nối thành một đoạn văn liền.',
-                },
-                examples: {
-                  type: 'array',
-                  description: 'Các câu ví dụ minh hoạ RIÊNG của đề mục này, đánh số theo đúng thứ tự trong sách. KHÔNG lẫn ví dụ của đề mục khác vào đây. Nếu đề mục này lại được chia thành các ý đánh số 1./2./3... (dùng "items" bên dưới), để mảng này rỗng - ví dụ của từng ý nằm trong "items" tương ứng, không lặp lại ở đây.',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      order: { type: 'integer', description: 'Thứ tự của câu ví dụ, bắt đầu từ 1.' },
-                      textZh: { type: 'string', description: 'Nội dung câu ví dụ bằng chữ Hán, lấy nguyên văn từ sách.' },
-                      pinyin: { type: 'string', nullable: true, description: 'Pinyin của câu ví dụ nếu sách có ghi, null nếu không có.' },
-                      translationVi: { type: 'string', nullable: true, description: 'Bản dịch tiếng Việt của câu ví dụ nếu sách có ghi, null nếu không có.' },
-                    },
-                    required: ['order', 'textZh'],
-                  },
-                },
-                items: {
-                  type: 'array',
-                  description:
-                    'DÙNG KHI đề mục này (thường là "Cấu trúc" hoặc "Cách dùng") tự nó được sách đánh số thành nhiều ý nhỏ (1. 2. 3...) và MỖI ý có các câu ví dụ minh hoạ RIÊNG đi ngay sau nó (không dùng chung ví dụ với ý khác). Mỗi ý đánh số là một phần tử trong mảng này, với "label" là số thứ tự (ví dụ "1", "2"), "content" là nội dung giải thích của riêng ý đó, "examples" là ví dụ riêng của ý đó. Nếu đề mục KHÔNG có ý nào đánh số kèm ví dụ riêng (trường hợp phổ biến nhất - toàn bộ nội dung số hoá chỉ là văn bản giải thích không kèm ví dụ riêng từng ý), để mảng này rỗng và giữ nguyên nội dung trong "content"/"examples" ở cấp đề mục cha như bình thường.',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      order: { type: 'integer', description: 'Thứ tự của ý, theo đúng số thứ tự sách ghi, bắt đầu từ 1.' },
-                      label: { type: 'string', description: 'Số thứ tự của ý, lấy nguyên văn như sách ghi (ví dụ "1", "2", "3").' },
-                      content: {
-                        type: 'string',
-                        nullable: true,
-                        description: 'Nội dung giải thích của riêng ý này (không bao gồm ví dụ), null nếu không có.',
-                      },
-                      examples: {
-                        type: 'array',
-                        description: 'Các câu ví dụ minh hoạ RIÊNG của ý này, đánh số theo đúng thứ tự trong sách.',
-                        items: {
-                          type: 'object',
-                          properties: {
-                            order: { type: 'integer', description: 'Thứ tự của câu ví dụ, bắt đầu từ 1.' },
-                            textZh: { type: 'string', description: 'Nội dung câu ví dụ bằng chữ Hán, lấy nguyên văn từ sách.' },
-                            pinyin: { type: 'string', nullable: true, description: 'Pinyin của câu ví dụ nếu sách có ghi, null nếu không có.' },
-                            translationVi: { type: 'string', nullable: true, description: 'Bản dịch tiếng Việt của câu ví dụ nếu sách có ghi, null nếu không có.' },
-                          },
-                          required: ['order', 'textZh'],
-                        },
-                      },
-                    },
-                    required: ['order', 'label', 'examples'],
-                  },
-                },
-              },
-              required: ['order', 'label', 'examples'],
-            },
-          },
-          subPoints: {
-            type: 'array',
-            description:
-              'Dùng khi điểm ngữ pháp này có tiêu đề đánh số La Mã (I, II, III...) và bên dưới có các đề mục con đánh chữ cái (A, B, C...), MỖI đề mục con có phần giải thích/cấu trúc và ví dụ RIÊNG của nó. Mỗi đề mục con là một phần tử trong mảng này, KHÔNG gộp vào sections ở cấp cha. Nếu điểm ngữ pháp không có cấu trúc 2 cấp như vậy thì để mảng này rỗng.',
-            items: {
-              type: 'object',
-              properties: {
-                order: { type: 'integer', description: 'Thứ tự của đề mục con trong điểm ngữ pháp, bắt đầu từ 1.' },
-                label: { type: 'string', description: 'Nhãn chữ cái của đề mục con, lấy nguyên văn từ sách (ví dụ "A", "B").' },
-                titleVi: { type: 'string', nullable: true, description: 'Tiêu đề đề mục con bằng tiếng Việt nếu có, null nếu không có.' },
-                sections: {
-                  type: 'array',
-                  description:
-                    'Các đề mục có nhãn riêng (Chức năng/Cấu trúc/Khẳng định/Phủ định/Câu hỏi/Cách dùng...) THUỘC RIÊNG đề mục con này, mỗi đề mục có nội dung và ví dụ riêng, ĐÚNG THEO THỨ TỰ xuất hiện trong sách. Cùng cấu trúc như "sections" ở cấp điểm ngữ pháp cha.',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      order: { type: 'integer', description: 'Thứ tự của đề mục, theo đúng thứ tự xuất hiện trong sách, bắt đầu từ 1.' },
-                      label: {
-                        type: 'string',
-                        description:
-                          'Nhãn của đề mục, lấy NGUYÊN VĂN như sách ghi - không dịch, không đổi tên, không tự tóm gọn.',
-                      },
-                      content: {
-                        type: 'string',
-                        nullable: true,
-                        description: 'Nội dung giải thích của riêng đề mục này (không bao gồm ví dụ), null nếu không có.',
-                      },
-                      examples: {
-                        type: 'array',
-                        description: 'Các câu ví dụ minh hoạ RIÊNG của đề mục này, đánh số theo đúng thứ tự trong sách. Nếu đề mục này được chia thành các ý đánh số 1./2./3... (dùng "items" bên dưới), để mảng này rỗng.',
-                        items: {
-                          type: 'object',
-                          properties: {
-                            order: { type: 'integer', description: 'Thứ tự của câu ví dụ, bắt đầu từ 1.' },
-                            textZh: { type: 'string', description: 'Nội dung câu ví dụ bằng chữ Hán, lấy nguyên văn từ sách.' },
-                            pinyin: { type: 'string', nullable: true, description: 'Pinyin của câu ví dụ nếu sách có ghi, null nếu không có.' },
-                            translationVi: { type: 'string', nullable: true, description: 'Bản dịch tiếng Việt của câu ví dụ nếu sách có ghi, null nếu không có.' },
-                          },
-                          required: ['order', 'textZh'],
-                        },
-                      },
-                      items: {
-                        type: 'array',
-                        description:
-                          'DÙNG KHI đề mục này tự nó được sách đánh số thành nhiều ý nhỏ (1. 2. 3...) và MỖI ý có ví dụ minh hoạ RIÊNG đi ngay sau nó. Cùng cấu trúc như "items" ở cấp sections của điểm ngữ pháp cha. Để mảng này rỗng nếu đề mục không có ý đánh số kèm ví dụ riêng.',
-                        items: {
-                          type: 'object',
-                          properties: {
-                            order: { type: 'integer', description: 'Thứ tự của ý, theo đúng số thứ tự sách ghi, bắt đầu từ 1.' },
-                            label: { type: 'string', description: 'Số thứ tự của ý, lấy nguyên văn như sách ghi (ví dụ "1", "2", "3").' },
-                            content: {
-                              type: 'string',
-                              nullable: true,
-                              description: 'Nội dung giải thích của riêng ý này (không bao gồm ví dụ), null nếu không có.',
-                            },
-                            examples: {
-                              type: 'array',
-                              description: 'Các câu ví dụ minh hoạ RIÊNG của ý này, đánh số theo đúng thứ tự trong sách.',
-                              items: {
-                                type: 'object',
-                                properties: {
-                                  order: { type: 'integer', description: 'Thứ tự của câu ví dụ, bắt đầu từ 1.' },
-                                  textZh: { type: 'string', description: 'Nội dung câu ví dụ bằng chữ Hán, lấy nguyên văn từ sách.' },
-                                  pinyin: { type: 'string', nullable: true, description: 'Pinyin của câu ví dụ nếu sách có ghi, null nếu không có.' },
-                                  translationVi: { type: 'string', nullable: true, description: 'Bản dịch tiếng Việt của câu ví dụ nếu sách có ghi, null nếu không có.' },
-                                },
-                                required: ['order', 'textZh'],
-                              },
-                            },
-                          },
-                          required: ['order', 'label', 'examples'],
-                        },
-                      },
-                    },
-                    required: ['order', 'label', 'examples'],
-                  },
-                },
-              },
-              required: ['order', 'label', 'sections'],
-            },
-          },
-        },
-        required: ['order', 'sections'],
-      },
+    grammarMarkdown: {
+      type: 'string',
+      description:
+        'Toàn bộ phần ngữ pháp của bài, dưới dạng một chuỗi Markdown DUY NHẤT, không bao gồm phần luyện tập/bài tập hỏi-đáp (練習/Luyện tập). Cấu trúc Markdown PHẢI theo đúng 3 cấp, không được lẫn cấp: "## Ngữ pháp N" (heading cấp 2, N là số thứ tự thường, bắt đầu từ 1) cho mỗi điểm ngữ pháp lớn - giữ tiêu đề tiếng Việt của điểm đó ngay sau, ví dụ "## Ngữ pháp 1: Cách đặt câu hỏi bằng tiếng Trung"; heading cấp 2 CHỈ dùng cho "Ngữ pháp N", không dùng cho bất kỳ thứ gì khác. Nếu điểm ngữ pháp có các đề mục con chữ cái (A, B...) bên dưới, mỗi đề mục con là một "### A. <tiêu đề đề mục con>" (heading cấp 3: chữ cái + dấu chấm + tiêu đề, ví dụ "### A. Câu hỏi với A 不 A") lồng ngay dưới heading cấp 2 của điểm ngữ pháp đó - TUYỆT ĐỐI KHÔNG tách đề mục con thành heading cấp 2 riêng. Trong mỗi điểm ngữ pháp (hoặc đề mục con), mỗi đề mục giải thích có nhãn riêng (Chức năng/Cấu trúc/Khẳng định/Phủ định/Câu hỏi/Cách dùng... - nhãn KHÔNG cố định, lấy nguyên văn từ sách) KHÔNG phải heading - PHẢI là một dòng in đậm viết hoa toàn bộ, ví dụ "**CHỨC NĂNG**", để phân biệt rõ với 2 cấp heading thật ("##"/"###") ở trên, và PHẢI có đúng một dòng trắng ngay sau dòng nhãn in đậm trước đoạn giải thích - không viết dính đoạn giải thích liền ngay sau nhãn. Ngay sau dòng trắng đó là đoạn văn giải thích (nếu sách có). Mỗi câu ví dụ minh hoạ là một khối ĐÚNG 3 dòng liên tiếp theo cú pháp danh sách có số Markdown: dòng 1 là câu chữ Hán có số thứ tự Markdown đứng trước, KẾT THÚC BẰNG ĐÚNG HAI DẤU CÁCH trước khi xuống dòng (ví dụ "1. 王先生要不要喝咖啡？  " - hai dấu cách cuối dòng bắt buộc để tạo ngắt dòng cứng Markdown), dòng 2 là pinyin viết NGHIÊNG (bọc trong "*...*") thụt lề ngay dưới dòng 1, CŨNG KẾT THÚC BẰNG ĐÚNG HAI DẤU CÁCH (ví dụ "   *Wáng Xiānshēng yào bú yào hē kāfēi?*  "), dòng 3 là nghĩa tiếng Việt thụt lề ngay dưới dòng 2, chữ thường không in nghiêng, KHÔNG cần hai dấu cách cuối vì là dòng cuối khối - ba dòng này là MỘT mục danh sách liên tục (không phải 3 mục riêng, không viết dính liền một dòng); nếu thiếu hai dấu cách cuối dòng 1 và dòng 2, Markdown sẽ nối 3 dòng dính liền thành một dòng khi hiển thị - đây là lỗi TUYỆT ĐỐI KHÔNG được mắc. Cách nhau với khối ví dụ kế tiếp bằng đúng MỘT dòng trắng, số thứ tự tiếp tục tăng dần (2., 3.,...) chứ không bắt đầu lại từ 1 trong cùng một đề mục. Nếu một đề mục tự nó được sách đánh số thành nhiều ý (1. 2. 3...), dùng danh sách có số Markdown ("1. ... 2. ...") ngay dưới nhãn in đậm của đề mục đó, mỗi mục danh sách chứa cả đoạn giải thích lẫn các khối ví dụ 3-dòng riêng của ý đó. Câu ví dụ minh hoạ cách dùng SAI (đánh dấu "*" ở đầu câu trong sách) vẫn viết theo đúng khối 3-dòng này, giữ nguyên dấu "*" ở đầu dòng 1 (đầu câu chữ Hán, không phải cú pháp in nghiêng Markdown). Nếu một cụm ví dụ trong sách gồm NHIỀU CÂU đi chung một số thứ tự (ví dụ mẫu câu hỏi + câu trả lời ngắn cùng đứng sau số "①", hoặc hội thoại "A: ... B: ..." cùng đứng sau một số) thì TẤT CẢ các câu trong cụm đó dùng CHUNG một số thứ tự Markdown - số thứ tự chỉ viết một lần ở khối 3-dòng đầu tiên của cụm, các khối 3-dòng còn lại trong cùng cụm thụt lề ngang bằng khối đầu (không đánh số riêng, không có dòng trắng xen giữa các khối trong cùng cụm) - TUYỆT ĐỐI KHÔNG tách mỗi câu trong cùng một cụm hỏi-đáp/đối đáp thành số thứ tự Markdown riêng. Bảng dữ liệu tham khảo (liệt kê từ vựng/công thức/danh mục, không phải câu ví dụ đánh số) PHẢI viết bằng ĐÚNG cú pháp bảng Markdown thật ("| Cột 1 | Cột 2 |" rồi dòng phân cách "| --- | --- |" rồi các dòng dữ liệu "| ... | ... |"), giữ đúng tiêu đề cột và số cột như bảng gốc trong sách - TUYỆT ĐỐI KHÔNG rút gọn thành danh sách gạch đầu dòng dù bảng gốc chỉ có 2 cột đơn giản.',
     },
   },
-  required: ['lesson', 'dialogues', 'grammarPoints'],
+  required: ['lesson', 'dialogues', 'grammarMarkdown'],
 } as const

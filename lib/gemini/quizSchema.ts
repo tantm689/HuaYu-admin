@@ -48,15 +48,23 @@ const FillBlankSchema = z.object({
   part: z.literal(2),
   type: z.literal('fill_blank'),
   order: z.number(),
-  // The sentence right before `sentence` in the original dialogue/example,
-  // shown alongside it so the blank has enough context to have exactly one
-  // correct answer - many function words (e.g. 不/也) are grammatically
-  // valid in a sentence read in isolation, and only wrong given what came
-  // before it.
-  contextSentence: z.string(),
+  // One single passage containing both the context sentence(s) and the
+  // blanked sentence, exactly as it should be shown to the learner (no
+  // separate context/blank fields to stitch back together on display) -
+  // still needs enough lead-in text that the blank has exactly one
+  // correct answer, since many function words (e.g. 不/也) are
+  // grammatically valid for a sentence read in isolation and only wrong
+  // given what came before it.
   sentence: z.string(),
   choices: choice4,
   correctIndex: z.number().min(0).max(3),
+  // Internal-only bookkeeping field: which of the lesson's grammar points
+  // (by heading, from grammarMarkdown) this question's blanked word
+  // exercises. Never surfaced in the User App's quiz UI - it only exists so
+  // Gemini has to commit to a specific grammar point per question instead of
+  // picking whichever sentence is easiest and drifting toward the same 1-2
+  // patterns across all 5 fill_blank questions.
+  grammarPointUsed: z.string().optional(),
 })
 
 const SentenceOrderSchema = z.object({
@@ -65,6 +73,8 @@ const SentenceOrderSchema = z.object({
   order: z.number(),
   words: z.array(z.string()).min(2),
   correctOrder: z.array(z.number()),
+  // Same internal-only bookkeeping as FillBlankSchema.grammarPointUsed.
+  grammarPointUsed: z.string().optional(),
 })
 
 // z.discriminatedUnion requires each member to be a plain ZodObject with a
@@ -211,8 +221,7 @@ export const GEMINI_QUIZ_PART2_RESPONSE_SCHEMA = {
               required: ['left', 'right'],
             },
           },
-          contextSentence: { type: 'string', nullable: true, description: 'Dùng cho fill_blank: câu ngay TRƯỚC "sentence" trong hội thoại/ví dụ gốc, lấy nguyên văn - cho học viên ngữ cảnh để chỗ trống chỉ có đúng 1 đáp án hợp lý.' },
-          sentence: { type: 'string', nullable: true, description: 'Dùng cho fill_blank: câu có chỗ trống đánh dấu bằng "___".' },
+          sentence: { type: 'string', nullable: true, description: 'Dùng cho fill_blank: MỘT chuỗi DUY NHẤT gồm câu ngữ cảnh nối với câu có chỗ trống đánh dấu bằng "___" - không tách thành 2 field riêng. Nếu 2 câu là lời của 2 người nói khác nhau trong hội thoại gốc, PHẢI phân tách bằng ký tự xuống dòng "\\n" giữa 2 câu; nếu cùng một người/mạch văn liền mạch, nối bằng dấu cách.' },
           choices: {
             type: 'array',
             nullable: true,
@@ -231,6 +240,11 @@ export const GEMINI_QUIZ_PART2_RESPONSE_SCHEMA = {
             nullable: true,
             description: 'Dùng cho sentence_order: thứ tự index đúng (theo vị trí trong mảng "words") để ghép thành câu hoàn chỉnh.',
             items: { type: 'integer' },
+          },
+          grammarPointUsed: {
+            type: 'string',
+            nullable: true,
+            description: 'Dùng cho fill_blank và sentence_order: tên/tiêu đề điểm ngữ pháp (lấy từ heading "## Ngữ pháp N: ..." trong grammarMarkdown) mà câu này đang áp dụng. Trường nội bộ để tự kiểm soát độ đa dạng, không hiển thị cho người học.',
           },
         },
         required: ['part', 'type', 'order'],
