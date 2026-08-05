@@ -221,7 +221,7 @@ export const GEMINI_QUIZ_PART2_RESPONSE_SCHEMA = {
               required: ['left', 'right'],
             },
           },
-          sentence: { type: 'string', nullable: true, description: 'Dùng cho fill_blank: MỘT đoạn văn bản DUY NHẤT gồm câu ngữ cảnh (nếu cần) ghép liền với câu có chỗ trống đánh dấu bằng "___", hiển thị nguyên vẹn cho học viên - không tách thành 2 field riêng.' },
+          sentence: { type: 'string', nullable: true, description: 'Dùng cho fill_blank: MỘT chuỗi DUY NHẤT gồm câu ngữ cảnh nối với câu có chỗ trống đánh dấu bằng "___" - không tách thành 2 field riêng. Nếu 2 câu là lời của 2 người nói khác nhau trong hội thoại gốc, PHẢI phân tách bằng ký tự xuống dòng "\\n" giữa 2 câu; nếu cùng một người/mạch văn liền mạch, nối bằng dấu cách.' },
           choices: {
             type: 'array',
             nullable: true,
