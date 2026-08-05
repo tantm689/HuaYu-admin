@@ -105,6 +105,31 @@ describe('GrammarMarkdownTableToolbar', () => {
     editor.destroy()
   })
 
+  it('closes the panel on an outside click without applying any table-editing action', async () => {
+    const onChange = vi.fn()
+    render(<GrammarMarkdownEditor value={tableMarkdown} onChange={onChange} />)
+    const toggle = await screen.findByRole('button', { name: 'Sửa bảng' })
+    fireEvent.click(toggle)
+    await waitFor(() => expect(screen.getByRole('menu')).toBeInTheDocument())
+    onChange.mockClear()
+
+    fireEvent.mouseDown(document.body)
+
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('closes the panel on scroll, since its position is only computed once when it opens', async () => {
+    render(<GrammarMarkdownEditor value={tableMarkdown} onChange={vi.fn()} />)
+    const toggle = await screen.findByRole('button', { name: 'Sửa bảng' })
+    fireEvent.click(toggle)
+    await waitFor(() => expect(screen.getByRole('menu')).toBeInTheDocument())
+
+    fireEvent.scroll(window)
+
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+  })
+
   it('shows one independent toggle button per table when a section has more than one', async () => {
     render(<GrammarMarkdownEditor value={twoTableMarkdown} onChange={vi.fn()} />)
     const toggles = await screen.findAllByRole('button', { name: 'Sửa bảng' })

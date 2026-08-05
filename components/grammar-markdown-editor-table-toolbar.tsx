@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import { createPortal } from 'react-dom'
 
@@ -43,12 +43,35 @@ export default function GrammarMarkdownTableToolbar({ editor }: { editor: Editor
 
 function TableEditButton({ editor, wrapper }: { editor: Editor; wrapper: HTMLElement }) {
   const [open, setOpen] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (getComputedStyle(wrapper).position === 'static') {
       wrapper.style.position = 'relative'
     }
   }, [wrapper])
+
+  useEffect(() => {
+    if (!open) return
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (panelRef.current && !panelRef.current.contains(target) && !wrapper.contains(target)) {
+        setOpen(false)
+      }
+    }
+    // The panel's fixed position is computed once when it opens - closing
+    // it on scroll avoids it drifting away from the table it belongs to
+    // rather than trying to keep it pinned in place on every scroll event.
+    const handleScroll = () => setOpen(false)
+
+    document.addEventListener('mousedown', handleOutsideClick, true)
+    window.addEventListener('scroll', handleScroll, true)
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick, true)
+      window.removeEventListener('scroll', handleScroll, true)
+    }
+  }, [open, wrapper])
 
   // If the selection is already inside THIS table (the user clicked a cell
   // before opening the panel), row/column commands act on that cell as-is.
@@ -75,41 +98,69 @@ function TableEditButton({ editor, wrapper }: { editor: Editor; wrapper: HTMLEle
       key={label}
       type="button"
       onMouseDown={(e) => e.preventDefault()}
-      onClick={run}
+      onClick={() => {
+        run()
+        setOpen(false)
+      }}
       className={`rounded px-2 py-1 text-xs hover:bg-muted ${extraClassName}`}
     >
       {label}
     </button>
   )
 
-  return createPortal(
-    <div className="absolute -top-3 right-0 z-10">
+  const toggleButton = createPortal(
+    <div className="absolute right-0 top-0 z-10">
       <button
         type="button"
         aria-label="Sửa bảng"
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => setOpen((v) => !v)}
-        className="rounded border bg-background/80 px-2 py-0.5 text-xs text-muted-foreground opacity-60 shadow-sm hover:opacity-100"
+        className="rounded border bg-background px-2 py-0.5 text-xs text-muted-foreground opacity-70 shadow-sm hover:opacity-100"
       >
         ✏️ Sửa bảng
       </button>
-      {open && (
-        <div className="absolute right-0 z-20 mt-1 flex w-max flex-wrap items-center gap-1 rounded-md border bg-popover p-1 shadow-md">
-          {button('+ Hàng trên', () => runInTable(() => editor.chain().focus().addRowBefore().run()))}
-          {button('+ Hàng dưới', () => runInTable(() => editor.chain().focus().addRowAfter().run()))}
-          {button('Xoá hàng', () => runInTable(() => editor.chain().focus().deleteRow().run()), 'text-destructive')}
-          <div className="mx-1 h-4 w-px bg-border" />
-          {button('+ Cột trái', () => runInTable(() => editor.chain().focus().addColumnBefore().run()))}
-          {button('+ Cột phải', () => runInTable(() => editor.chain().focus().addColumnAfter().run()))}
-          {button('Xoá cột', () => runInTable(() => editor.chain().focus().deleteColumn().run()), 'text-destructive')}
-          <div className="mx-1 h-4 w-px bg-border" />
-          {button('Gộp ô', () => editor.chain().focus().mergeCells().run())}
-          {button('Tách ô', () => editor.chain().focus().splitCell().run())}
-          <div className="mx-1 h-4 w-px bg-border" />
-          {button('Xoá bảng', () => runInTable(() => editor.chain().focus().deleteTable().run()), 'text-destructive font-medium')}
-        </div>
-      )}
     </div>,
     wrapper
+  )
+
+  if (!open) return toggleButton
+
+  // Portaled to document.body (not the table wrapper) and positioned via a
+  // fixed rect computed from the wrapper's own bounding box, rather than
+  // an absolutely-positioned child of the wrapper: .tableWrapper has
+  // overflow-x-auto for wide tables, which - per the CSS spec - forces
+  // overflow-y into a matching scroll/clip container too, so a panel wide
+  // enough to need max-width was getting silently clipped or scrolled
+  // inside the table's own horizontal scrollbar instead of floating freely
+  // above it.
+  const rect = wrapper.getBoundingClientRect()
+  const panel = createPortal(
+    <div
+      ref={panelRef}
+      role="menu"
+      className="fixed z-20 flex max-w-[min(90vw,32rem)] flex-wrap items-center gap-1 rounded-md border bg-popover p-1.5 shadow-md"
+      style={{ top: rect.top + 28, right: Math.max(8, window.innerWidth - rect.right) }}
+    >
+      {button('+ Hàng trên', () => runInTable(() => editor.chain().focus().addRowBefore().run()))}
+      {button('+ Hàng dưới', () => runInTable(() => editor.chain().focus().addRowAfter().run()))}
+      {button('Xoá hàng', () => runInTable(() => editor.chain().focus().deleteRow().run()), 'text-destructive')}
+      <div className="mx-1 h-4 w-px bg-border" />
+      {button('+ Cột trái', () => runInTable(() => editor.chain().focus().addColumnBefore().run()))}
+      {button('+ Cột phải', () => runInTable(() => editor.chain().focus().addColumnAfter().run()))}
+      {button('Xoá cột', () => runInTable(() => editor.chain().focus().deleteColumn().run()), 'text-destructive')}
+      <div className="mx-1 h-4 w-px bg-border" />
+      {button('Gộp ô', () => editor.chain().focus().mergeCells().run())}
+      {button('Tách ô', () => editor.chain().focus().splitCell().run())}
+      <div className="mx-1 h-4 w-px bg-border" />
+      {button('Xoá bảng', () => runInTable(() => editor.chain().focus().deleteTable().run()), 'text-destructive font-medium')}
+    </div>,
+    document.body
+  )
+
+  return (
+    <>
+      {toggleButton}
+      {panel}
+    </>
   )
 }
