@@ -68,8 +68,8 @@ export default function GrammarMarkdownEditor({
           value={section.id}
           className="rounded-md border bg-background px-3 not-last:border-b-0"
         >
-          <AccordionTrigger className="px-1">
-            {section.title || 'Ghi chú chung'}
+          <AccordionTrigger className="px-1 text-lg font-semibold">
+            {section.heading ? section.heading.replace(/^##\s*/, '') : 'Ghi chú chung'}
           </AccordionTrigger>
           <AccordionContent>
             <GrammarMarkdownSectionEditor

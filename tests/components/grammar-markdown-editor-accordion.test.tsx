@@ -21,8 +21,8 @@ const twoPointMarkdown = [
 describe('GrammarMarkdownEditor accordion', () => {
   it('renders one accordion trigger per grammar point, all expanded by default', () => {
     render(<GrammarMarkdownEditor value={twoPointMarkdown} onChange={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'Cách đặt câu hỏi' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Trợ từ 嗎' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ngữ pháp 1: Cách đặt câu hỏi' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ngữ pháp 2: Trợ từ 嗎' })).toBeInTheDocument()
     // Both expanded by default - both bodies' text should be visible at once.
     expect(screen.getByText('Giải thích điểm 1.')).toBeInTheDocument()
     expect(screen.getByText('Giải thích điểm 2.')).toBeInTheDocument()
@@ -30,7 +30,7 @@ describe('GrammarMarkdownEditor accordion', () => {
 
   it('collapses and re-expands one section independently of the other', async () => {
     render(<GrammarMarkdownEditor value={twoPointMarkdown} onChange={vi.fn()} />)
-    const trigger1 = screen.getByRole('button', { name: 'Cách đặt câu hỏi' })
+    const trigger1 = screen.getByRole('button', { name: 'Ngữ pháp 1: Cách đặt câu hỏi' })
 
     fireEvent.click(trigger1)
     await waitFor(() => expect(trigger1).toHaveAttribute('aria-expanded', 'false'))
@@ -78,12 +78,12 @@ describe('GrammarMarkdownEditor accordion', () => {
 
   it('resets to the new sections when the value prop changes externally (e.g. loading a different lesson)', async () => {
     const { rerender } = render(<GrammarMarkdownEditor value={twoPointMarkdown} onChange={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'Cách đặt câu hỏi' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ngữ pháp 1: Cách đặt câu hỏi' })).toBeInTheDocument()
 
     const otherLessonMarkdown = '## Ngữ pháp 1: Điểm khác\n\nNội dung khác.'
     rerender(<GrammarMarkdownEditor value={otherLessonMarkdown} onChange={vi.fn()} />)
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Điểm khác' })).toBeInTheDocument())
-    expect(screen.queryByRole('button', { name: 'Cách đặt câu hỏi' })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Ngữ pháp 1: Điểm khác' })).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Ngữ pháp 1: Cách đặt câu hỏi' })).not.toBeInTheDocument()
   })
 })

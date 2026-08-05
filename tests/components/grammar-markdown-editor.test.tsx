@@ -16,8 +16,11 @@ import { SLASH_COMMAND_ITEMS } from '@/components/grammar-markdown-editor-slash-
 describe('GrammarMarkdownEditor', () => {
   it('renders the given markdown content as rich text, with the "## Ngữ pháp N" heading shown only as the accordion trigger label, not duplicated in the section body', () => {
     render(<GrammarMarkdownEditor value={'## Ngữ pháp 1: Test\n\n**CHỨC NĂNG**\n\nGiải thích.'} onChange={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'Test' })).toBeInTheDocument()
-    expect(screen.queryByText('Ngữ pháp 1: Test')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ngữ pháp 1: Test' })).toBeInTheDocument()
+    // The heading text is only in the trigger button (asserted above), not
+    // duplicated again as a heading element inside the editable section body.
+    const editable = screen.getByRole('textbox')
+    expect(editable.querySelector('h1, h2, h3, h4, h5, h6')).toBeNull()
     expect(screen.getByText('CHỨC NĂNG')).toBeInTheDocument()
     expect(screen.getByText('Giải thích.')).toBeInTheDocument()
   })
