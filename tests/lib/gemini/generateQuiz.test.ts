@@ -35,8 +35,7 @@ function validQuestion(part: 1 | 2, type: string, order: number): QuizQuestion {
       part: 2,
       type: 'fill_blank',
       order,
-      contextSentence: '你今天要做什麼？',
-      sentence: '我___去。',
+      sentence: '你今天要做什麼？我___去。',
       choices: ['想', '在', '和', '把'],
       correctIndex: 0,
     }

@@ -48,12 +48,13 @@ const FillBlankSchema = z.object({
   part: z.literal(2),
   type: z.literal('fill_blank'),
   order: z.number(),
-  // The sentence right before `sentence` in the original dialogue/example,
-  // shown alongside it so the blank has enough context to have exactly one
-  // correct answer - many function words (e.g. 不/也) are grammatically
-  // valid in a sentence read in isolation, and only wrong given what came
-  // before it.
-  contextSentence: z.string(),
+  // One single passage containing both the context sentence(s) and the
+  // blanked sentence, exactly as it should be shown to the learner (no
+  // separate context/blank fields to stitch back together on display) -
+  // still needs enough lead-in text that the blank has exactly one
+  // correct answer, since many function words (e.g. 不/也) are
+  // grammatically valid for a sentence read in isolation and only wrong
+  // given what came before it.
   sentence: z.string(),
   choices: choice4,
   correctIndex: z.number().min(0).max(3),
@@ -220,8 +221,7 @@ export const GEMINI_QUIZ_PART2_RESPONSE_SCHEMA = {
               required: ['left', 'right'],
             },
           },
-          contextSentence: { type: 'string', nullable: true, description: 'Dùng cho fill_blank: câu ngay TRƯỚC "sentence" trong hội thoại/ví dụ gốc, lấy nguyên văn - cho học viên ngữ cảnh để chỗ trống chỉ có đúng 1 đáp án hợp lý.' },
-          sentence: { type: 'string', nullable: true, description: 'Dùng cho fill_blank: câu có chỗ trống đánh dấu bằng "___".' },
+          sentence: { type: 'string', nullable: true, description: 'Dùng cho fill_blank: MỘT đoạn văn bản DUY NHẤT gồm câu ngữ cảnh (nếu cần) ghép liền với câu có chỗ trống đánh dấu bằng "___", hiển thị nguyên vẹn cho học viên - không tách thành 2 field riêng.' },
           choices: {
             type: 'array',
             nullable: true,

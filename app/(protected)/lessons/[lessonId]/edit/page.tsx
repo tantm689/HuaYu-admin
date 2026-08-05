@@ -97,7 +97,7 @@ type QuizQuestionView = {
   | { type: "listening_choice"; audioUrl: string; choices: string[]; correctIndex: number }
   | { type: "tone_choice"; wordZh: string; pinyinNoTone: string; choices: string[]; correctIndex: number }
   | { type: "matching"; pairs: { left: string; right: string }[] }
-  | { type: "fill_blank"; contextSentence: string; sentence: string; choices: string[]; correctIndex: number }
+  | { type: "fill_blank"; sentence: string; choices: string[]; correctIndex: number }
   | { type: "sentence_order"; words: string[]; correctOrder: number[] }
 )
 
@@ -291,15 +291,6 @@ function QuizQuestionCard({
 
       {question.type === "fill_blank" && (
         <>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-muted-foreground">Câu ngữ cảnh (câu trước đó):</span>
-            <EditableText
-              value={question.contextSentence}
-              onChange={(contextSentence) => onChangePayload({ contextSentence })}
-              className="field-zh text-muted-foreground"
-              disabled={!editable}
-            />
-          </div>
           <EditableText
             value={question.sentence}
             onChange={(sentence) => onChangePayload({ sentence })}
