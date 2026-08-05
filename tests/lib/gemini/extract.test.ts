@@ -47,8 +47,8 @@ describe('extractLessonFromPdf', () => {
 })
 
 describe('EXTRACTION_PROMPT grammar heading/example guidance', () => {
-  it('instructs a level-1 heading for "Ngữ pháp N"', () => {
-    expect(EXTRACTION_PROMPT).toContain('# Ngữ pháp N')
+  it('instructs a level-2 heading for "Ngữ pháp N"', () => {
+    expect(EXTRACTION_PROMPT).toContain('## Ngữ pháp N')
   })
 
   it('instructs numbered 3-line example blocks with italic pinyin', () => {

@@ -244,7 +244,7 @@ export const GEMINI_QUIZ_PART2_RESPONSE_SCHEMA = {
           grammarPointUsed: {
             type: 'string',
             nullable: true,
-            description: 'Dùng cho fill_blank và sentence_order: tên/tiêu đề điểm ngữ pháp (lấy từ heading "# Ngữ pháp N: ..." trong grammarMarkdown) mà câu này đang áp dụng. Trường nội bộ để tự kiểm soát độ đa dạng, không hiển thị cho người học.',
+            description: 'Dùng cho fill_blank và sentence_order: tên/tiêu đề điểm ngữ pháp (lấy từ heading "## Ngữ pháp N: ..." trong grammarMarkdown) mà câu này đang áp dụng. Trường nội bộ để tự kiểm soát độ đa dạng, không hiển thị cho người học.',
           },
         },
         required: ['part', 'type', 'order'],
