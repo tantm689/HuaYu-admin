@@ -1,18 +1,17 @@
 'use client'
 
-import { useEditor, EditorContent, type Editor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import { Table } from '@tiptap/extension-table'
-import TableRow from '@tiptap/extension-table-row'
-import TableCell from '@tiptap/extension-table-cell'
-import TableHeader from '@tiptap/extension-table-header'
-import { Markdown, type MarkdownStorage } from 'tiptap-markdown'
-import { useEffect } from 'react'
-import { createSlashCommandExtension } from './grammar-markdown-editor-slash-command'
-import GrammarMarkdownToolbar from './grammar-markdown-editor-toolbar'
+import { useMemo, useState, useEffect, useRef } from 'react'
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion'
+import GrammarMarkdownSectionEditor from './grammar-markdown-section-editor'
+import { splitGrammarMarkdown, joinGrammarMarkdown, type GrammarMarkdownSection } from '@/lib/grammarMarkdownSections'
 
-type EditorWithMarkdown = Editor & { storage: { markdown: MarkdownStorage } }
-
+// A lesson's grammar content can have many grammar points, each with
+// several examples - as one continuous document that got long enough to
+// make finding/editing a specific point tedious. This splits grammarMarkdown
+// at "## Ngữ pháp N" boundaries into a collapsible accordion, one section
+// per grammar point (each with its own independent TipTap editor instance),
+// so an editor can jump straight to the point they need without scrolling
+// past every other one first.
 export default function GrammarMarkdownEditor({
   value,
   onChange,
@@ -22,49 +21,65 @@ export default function GrammarMarkdownEditor({
   onChange: (markdown: string) => void
   disabled?: boolean
 }) {
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Markdown,
-      Table.configure({ resizable: true }),
-      TableRow,
-      TableHeader,
-      TableCell,
-      createSlashCommandExtension(),
-    ],
-    content: value,
-    editable: !disabled,
-    immediatelyRender: false,
-    onUpdate: ({ editor }) => {
-      onChange((editor as EditorWithMarkdown).storage.markdown.getMarkdown())
-    },
-  })
+  const [sections, setSections] = useState<GrammarMarkdownSection[]>(() => splitGrammarMarkdown(value))
+  // Tracks the last value this component itself produced via onChange, so
+  // the resync effect below can tell "value changed because we emitted it"
+  // apart from "value changed because a parent set it externally" (e.g.
+  // loading a different lesson) - only the latter should reset local state.
+  const lastEmitted = useRef(value)
 
   useEffect(() => {
-    editor?.setEditable(!disabled)
-  }, [editor, disabled])
-
-  useEffect(() => {
-    if (!editor) return
-    const currentMarkdown = (editor as EditorWithMarkdown).storage.markdown.getMarkdown()
-    if (value !== currentMarkdown) {
-      // setContent() leaves the selection at the END of the newly-set
-      // content by default - if that content ends in a table, the cursor
-      // lands inside the table's last cell, which makes the toolbar's
-      // table-context controls show up on every initial load/external sync
-      // even though the user never clicked into a table. Explicitly
-      // collapse the selection to the document start right after.
-      editor.chain().setContent(value).setTextSelection(0).run()
+    if (value !== lastEmitted.current) {
+      setSections(splitGrammarMarkdown(value))
+      lastEmitted.current = value
     }
-  }, [editor, value])
+  }, [value])
+
+  const sectionIds = useMemo(() => sections.map((s) => s.id), [sections])
+
+  const handleSectionChange = (id: string, markdown: string) => {
+    setSections((prev) => {
+      const next = prev.map((s) => (s.id === id ? { ...s, markdown } : s))
+      const joined = joinGrammarMarkdown(next)
+      lastEmitted.current = joined
+      onChange(joined)
+      return next
+    })
+  }
+
+  if (sections.length === 0) {
+    return (
+      <GrammarMarkdownSectionEditor
+        value=""
+        disabled={disabled}
+        onChange={(markdown) => {
+          lastEmitted.current = markdown
+          onChange(markdown)
+        }}
+      />
+    )
+  }
 
   return (
-    <div className="rounded-md border bg-background p-4">
-      {editor && !disabled && <GrammarMarkdownToolbar editor={editor} />}
-      <EditorContent
-        editor={editor}
-        className="prose prose-sm max-w-none focus:outline-none prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground [&_.ProseMirror]:min-h-[200px] [&_.ProseMirror]:outline-none [&_.tableWrapper]:overflow-x-auto [&_table]:border-collapse [&_table]:w-full [&_td]:relative [&_td]:border [&_td]:border-border [&_td]:p-2 [&_th]:relative [&_th]:border [&_th]:border-border [&_th]:bg-muted/40 [&_th]:p-2 [&_.column-resize-handle]:absolute [&_.column-resize-handle]:right-[-2px] [&_.column-resize-handle]:top-0 [&_.column-resize-handle]:bottom-0 [&_.column-resize-handle]:w-1 [&_.column-resize-handle]:bg-primary/50 [&_.column-resize-handle]:cursor-col-resize [&_.column-resize-handle]:pointer-events-auto [&_.selectedCell]:bg-primary/10 [&.resize-cursor]:cursor-col-resize"
-      />
-    </div>
+    <Accordion multiple defaultValue={sectionIds} className="gap-2">
+      {sections.map((section) => (
+        <AccordionItem
+          key={section.id}
+          value={section.id}
+          className="rounded-md border bg-background px-3 not-last:border-b-0"
+        >
+          <AccordionTrigger className="px-1">
+            {section.title || 'Ghi chú chung'}
+          </AccordionTrigger>
+          <AccordionContent>
+            <GrammarMarkdownSectionEditor
+              value={section.markdown}
+              disabled={disabled}
+              onChange={(markdown) => handleSectionChange(section.id, markdown)}
+            />
+          </AccordionContent>
+        </AccordionItem>
+      ))}
+    </Accordion>
   )
 }
