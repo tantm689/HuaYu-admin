@@ -4,15 +4,14 @@ import { BubbleMenu } from '@tiptap/react/menus'
 import { useEditorState } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
 
-// A toolbar that floats and follows the cursor - shown whenever the cursor
-// sits anywhere in the editor content, not only once text is selected
-// (BubbleMenu's default shouldShow requires a non-empty selection). A fixed
-// bar pinned to the top of the editor was tried first, but scrolling up to
-// reach it on every small edit was reported as unusable; a bar dropped
-// entirely on selection was the version before that, reported the same way
-// for the opposite reason (it disappeared as soon as the selection
-// collapsed back to a cursor). This sits in between: always near wherever
-// the cursor actually is.
+// Formatting bubble menu: shown only when the user has an actual (non-empty)
+// text selection - not on every focus/cursor placement. Two earlier
+// versions were tried and both rejected: a fixed bar pinned to the top
+// (had to scroll up to reach it on every edit) and a version that showed
+// whenever the editor was merely focused (felt like it was always in the
+// way). Only appearing on a real selection, like Word/Google Docs/Notion's
+// own text toolbar, means it only shows up right when there's something to
+// apply formatting to.
 export default function GrammarMarkdownToolbar({ editor }: { editor: Editor }) {
   const state = useEditorState({
     editor,
@@ -26,7 +25,6 @@ export default function GrammarMarkdownToolbar({ editor }: { editor: Editor }) {
       heading3: ctx.editor.isActive('heading', { level: 3 }),
       bulletList: ctx.editor.isActive('bulletList'),
       orderedList: ctx.editor.isActive('orderedList'),
-      inTable: ctx.editor.isActive('table'),
     }),
   })
 
@@ -51,7 +49,7 @@ export default function GrammarMarkdownToolbar({ editor }: { editor: Editor }) {
     <BubbleMenu
       editor={editor}
       pluginKey="grammarMarkdownToolbar"
-      shouldShow={({ editor }) => editor.isEditable && editor.isFocused}
+      shouldShow={({ editor, from, to }) => editor.isEditable && from !== to && !editor.isActive('table')}
       className="flex flex-wrap items-center gap-1 rounded-md border bg-popover p-1 shadow-md"
     >
       {button('B', state.bold, () => editor.chain().focus().toggleBold().run(), 'font-bold')}
@@ -68,18 +66,6 @@ export default function GrammarMarkdownToolbar({ editor }: { editor: Editor }) {
       <div className="mx-1 h-4 w-px bg-border" />
       {button('Bảng', false, () =>
         editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
-      )}
-      {state.inTable && (
-        <>
-          <div className="mx-1 h-4 w-px bg-border" />
-          {button('+ Hàng trên', false, () => editor.chain().focus().addRowBefore().run())}
-          {button('+ Hàng dưới', false, () => editor.chain().focus().addRowAfter().run())}
-          {button('Xoá hàng', false, () => editor.chain().focus().deleteRow().run(), 'text-destructive')}
-          {button('+ Cột trái', false, () => editor.chain().focus().addColumnBefore().run())}
-          {button('+ Cột phải', false, () => editor.chain().focus().addColumnAfter().run())}
-          {button('Xoá cột', false, () => editor.chain().focus().deleteColumn().run(), 'text-destructive')}
-          {button('Xoá bảng', false, () => editor.chain().focus().deleteTable().run(), 'text-destructive font-medium')}
-        </>
       )}
     </BubbleMenu>
   )

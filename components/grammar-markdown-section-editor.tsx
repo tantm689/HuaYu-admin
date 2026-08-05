@@ -10,6 +10,7 @@ import { Markdown, type MarkdownStorage } from 'tiptap-markdown'
 import { useEffect } from 'react'
 import { createSlashCommandExtension } from './grammar-markdown-editor-slash-command'
 import GrammarMarkdownToolbar from './grammar-markdown-editor-toolbar'
+import GrammarMarkdownTableToolbar from './grammar-markdown-editor-table-toolbar'
 
 type EditorWithMarkdown = Editor & { storage: { markdown: MarkdownStorage } }
 
@@ -67,6 +68,7 @@ export default function GrammarMarkdownSectionEditor({
   return (
     <div className="rounded-md border bg-background p-4">
       {editor && !disabled && <GrammarMarkdownToolbar editor={editor} />}
+      {editor && !disabled && <GrammarMarkdownTableToolbar editor={editor} />}
       <EditorContent
         editor={editor}
         className="prose prose-sm max-w-none focus:outline-none prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground [&_.ProseMirror]:min-h-[200px] [&_.ProseMirror]:outline-none [&_.tableWrapper]:overflow-x-auto [&_table]:border-collapse [&_table]:w-full [&_td]:relative [&_td]:border [&_td]:border-border [&_td]:p-2 [&_th]:relative [&_th]:border [&_th]:border-border [&_th]:bg-muted/40 [&_th]:p-2 [&_.column-resize-handle]:absolute [&_.column-resize-handle]:right-[-2px] [&_.column-resize-handle]:top-0 [&_.column-resize-handle]:bottom-0 [&_.column-resize-handle]:w-1 [&_.column-resize-handle]:bg-primary/50 [&_.column-resize-handle]:cursor-col-resize [&_.column-resize-handle]:pointer-events-auto [&_.selectedCell]:bg-primary/10 [&.resize-cursor]:cursor-col-resize"
