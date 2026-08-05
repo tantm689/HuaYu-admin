@@ -11,10 +11,10 @@ export default function ProtectedLayout({
         <nav className="mx-auto flex w-full max-w-5xl items-center gap-6 px-4 py-3 sm:px-6">
           <Link href="/books" className="flex items-center gap-2">
             <span className="flex size-7 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
-              TE
+              HY
             </span>
             <span className="text-sm font-semibold tracking-tight text-foreground">
-              TaiwaneseEasy Admin
+              HuaYu Admin
             </span>
           </Link>
           <Link

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TaiwaneseEasy Admin",
-  description: "Bảng quản trị nội dung sách giáo khoa TaiwaneseEasy",
+  title: "HuaYu Admin",
+  description: "Bảng quản trị nội dung sách giáo khoa HuaYu",
 };
 
 export default function RootLayout({
