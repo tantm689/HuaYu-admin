@@ -228,19 +228,29 @@ describe('GrammarMarkdownEditor', () => {
     editor.destroy()
   })
 
-  // The toolbar is a fixed bar pinned above the editor (Word/Docs-style),
-  // not a BubbleMenu that only appears once text is selected - this is the
-  // behavior the earlier BubbleMenu-based version was replaced for, since
-  // editors reported it "didn't feel usable" appearing only on selection.
-  it('shows the formatting toolbar immediately, with no text selection required', () => {
+  // The toolbar follows the cursor (a BubbleMenu with shouldShow returning
+  // true whenever the editor is focused) rather than requiring an actual
+  // text selection or staying pinned to a fixed position - this is the
+  // middle ground settled on after two earlier versions were both reported
+  // unusable: a fixed top bar required scrolling up to reach on every edit,
+  // and a plain BubbleMenu (selection-only) disappeared the instant the
+  // selection collapsed back to a cursor.
+  it('shows the formatting toolbar once the editor is focused, with no text selection required', async () => {
     render(<GrammarMarkdownEditor value={'Nội dung.'} onChange={vi.fn()} />)
-    expect(screen.getByText('B')).toBeInTheDocument()
+    expect(screen.queryByText('B')).not.toBeInTheDocument()
+
+    const editable = screen.getByRole('textbox')
+    fireEvent.focus(editable)
+
+    await waitFor(() => expect(screen.getByText('B')).toBeInTheDocument())
     expect(screen.getByText('I')).toBeInTheDocument()
     expect(screen.getByText('H1')).toBeInTheDocument()
   })
 
   it('hides the toolbar entirely when the editor is disabled', () => {
     render(<GrammarMarkdownEditor value={'Nội dung.'} onChange={vi.fn()} disabled />)
+    const editable = screen.getByRole('textbox')
+    fireEvent.focus(editable)
     expect(screen.queryByText('H1')).not.toBeInTheDocument()
   })
 

@@ -1,13 +1,18 @@
 'use client'
 
+import { BubbleMenu } from '@tiptap/react/menus'
 import { useEditorState } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
 
-// A fixed toolbar pinned above the editor, Word/Google-Docs style: always
-// visible rather than appearing only on text selection (the earlier
-// BubbleMenu-based version), since editors here select text to fix a small
-// typo and expect the formatting buttons already on screen, not something
-// that pops in only after they've made a selection.
+// A toolbar that floats and follows the cursor - shown whenever the cursor
+// sits anywhere in the editor content, not only once text is selected
+// (BubbleMenu's default shouldShow requires a non-empty selection). A fixed
+// bar pinned to the top of the editor was tried first, but scrolling up to
+// reach it on every small edit was reported as unusable; a bar dropped
+// entirely on selection was the version before that, reported the same way
+// for the opposite reason (it disappeared as soon as the selection
+// collapsed back to a cursor). This sits in between: always near wherever
+// the cursor actually is.
 export default function GrammarMarkdownToolbar({ editor }: { editor: Editor }) {
   const state = useEditorState({
     editor,
@@ -43,7 +48,12 @@ export default function GrammarMarkdownToolbar({ editor }: { editor: Editor }) {
   )
 
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-1 rounded-md border bg-muted/20 p-1">
+    <BubbleMenu
+      editor={editor}
+      pluginKey="grammarMarkdownToolbar"
+      shouldShow={({ editor }) => editor.isEditable && editor.isFocused}
+      className="flex flex-wrap items-center gap-1 rounded-md border bg-popover p-1 shadow-md"
+    >
       {button('B', state.bold, () => editor.chain().focus().toggleBold().run(), 'font-bold')}
       {button('I', state.italic, () => editor.chain().focus().toggleItalic().run(), 'italic')}
       {button('S', state.strike, () => editor.chain().focus().toggleStrike().run(), 'line-through')}
@@ -71,6 +81,6 @@ export default function GrammarMarkdownToolbar({ editor }: { editor: Editor }) {
           {button('Xoá bảng', false, () => editor.chain().focus().deleteTable().run(), 'text-destructive font-medium')}
         </>
       )}
-    </div>
+    </BubbleMenu>
   )
 }
