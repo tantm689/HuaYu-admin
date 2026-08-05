@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai'
+import { ZodError, type ZodType } from 'zod'
 import type { ExtractionResult } from './schema'
 import {
   Part1QuestionSchema,
@@ -8,6 +9,28 @@ import {
   type Part1Question,
   type Part2Question,
 } from './quizSchema'
+
+// A bare ZodError's .message is just the raw issues array
+// (`[{"code":"invalid_type","path":["choices"],...}]`) with no indication
+// of WHICH of the 15 questions failed or what type it was - exactly the
+// unreadable error this was built to fix. Re-parses each question
+// individually so a failure can be attributed to its index/type before
+// rethrowing, instead of losing that context in a single .map() call.
+function parseQuestions<T>(questions: unknown[], schema: ZodType<T>): T[] {
+  return questions.map((q, index) => {
+    const result = schema.safeParse(q)
+    if (result.success) return result.data
+    const type = (q as { type?: unknown })?.type
+    const typeLabel = typeof type === 'string' ? type : 'không xác định'
+    throw new Error(
+      `Câu hỏi thứ ${index + 1} (dạng "${typeLabel}") thiếu/sai dữ liệu: ${describeZodIssues(result.error)}`
+    )
+  })
+}
+
+function describeZodIssues(error: ZodError): string {
+  return error.issues.map((issue) => `${issue.path.join('.')} - ${issue.message}`).join('; ')
+}
 
 // Separate from gemini-3.6-flash (used by lib/gemini/extract.ts for PDF
 // extraction) so quiz generation draws from its own daily request quota.
@@ -37,7 +60,7 @@ Sinh đúng 15 câu hỏi thuộc 3 dạng nhận biết từ vựng/phát âm, 
 2. "listening_choice": chỉ được chọn từ vựng ĐÃ CÓ audioUrl trong dữ liệu vocabulary được cung cấp (KHÔNG được chọn từ chưa có audioUrl, và KHÔNG được tự bịa audioUrl). Field: audioUrl (lấy nguyên văn từ dữ liệu), choices (4 lựa chọn nghĩa hoặc chữ Hán), correctIndex.
 3. "tone_choice": cho 1 từ, hiển thị chữ Hán + pinyin KHÔNG dấu thanh điệu, hỏi thanh điệu đúng trong 4 biến thể pinyin có dấu khác nhau. Field: wordZh, pinyinNoTone, choices (4 biến thể pinyin có dấu), correctIndex.
 
-QUAN TRỌNG: mỗi câu hỏi PHẢI có "part" (luôn là 1), "type", "order" (thứ tự liên tục 1-15). Chỉ dùng nội dung có trong dữ liệu được cung cấp bên dưới, KHÔNG tự sáng tác từ vựng ngoài phạm vi bài học này.
+QUAN TRỌNG: mỗi câu hỏi PHẢI có "part" (luôn là 1), "type", "order" (thứ tự liên tục 1-15), VÀ BẮT BUỘC PHẢI CÓ "choices" (đúng 4 lựa chọn) và "correctIndex" (0-3) - cả 3 dạng câu hỏi ở trên (pinyin_choice, listening_choice, tone_choice) ĐỀU dùng chung 2 field này, TUYỆT ĐỐI KHÔNG được bỏ trống hay để thiếu "choices"/"correctIndex" ở bất kỳ câu nào dù là dạng nào - thiếu 1 trong 2 field này ở bất kỳ câu nào sẽ khiến toàn bộ 15 câu bị từ chối. Chỉ dùng nội dung có trong dữ liệu được cung cấp bên dưới, KHÔNG tự sáng tác từ vựng ngoài phạm vi bài học này.
 
 Trả về đúng theo JSON schema đã cung cấp, không thêm giải thích ngoài JSON.`
 
@@ -133,11 +156,11 @@ async function callGemini(
 // faster, and a failure in one part doesn't require redoing the other.
 export async function generateQuizPart1(result: ExtractionResult): Promise<QuizGenerationResult<Part1Question>> {
   const questions = await callGemini(PART1_PROMPT, lessonDataText(result), GEMINI_QUIZ_PART1_RESPONSE_SCHEMA)
-  return { questions: questions.map((q) => Part1QuestionSchema.parse(q)), usedFallbackModel: false }
+  return { questions: parseQuestions(questions, Part1QuestionSchema), usedFallbackModel: false }
 }
 
 // Generates Part 2 (15 questions: matching/fill_blank/sentence_order).
 export async function generateQuizPart2(result: ExtractionResult): Promise<QuizGenerationResult<Part2Question>> {
   const questions = await callGemini(PART2_PROMPT, lessonDataText(result), GEMINI_QUIZ_PART2_RESPONSE_SCHEMA)
-  return { questions: questions.map((q) => Part2QuestionSchema.parse(q)), usedFallbackModel: false }
+  return { questions: parseQuestions(questions, Part2QuestionSchema), usedFallbackModel: false }
 }

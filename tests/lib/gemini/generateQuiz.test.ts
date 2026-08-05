@@ -153,11 +153,26 @@ describe('generateQuizPart1', () => {
     await expect(generateQuizPart1(baseResult())).rejects.toThrow(/not valid JSON/)
   })
 
-  it('throws when the response fails schema validation', async () => {
-    generateContentMock.mockResolvedValue({
-      text: JSON.stringify({ questions: [{ part: 1, type: 'pinyin_choice', order: 1 }] }),
-    })
-    await expect(generateQuizPart1(baseResult())).rejects.toThrow()
+  // A bare ZodError's default .message is just the raw issues array
+  // (e.g. `[{"code":"invalid_type","path":["choices"],...}]`) with no
+  // indication of which of the 15 questions failed or what type it was -
+  // this is the actual error a user reported seeing. Asserts the message
+  // names the question's position/type so it's diagnosable without reading
+  // a stack trace.
+  it('throws with a message identifying which question and type failed schema validation, not a bare Zod issues dump', async () => {
+    const questions = fifteenPart1Questions()
+    // Simulate Gemini omitting choices/correctIndex for one listening_choice
+    // question - the schema requires them for every Part 1 type, but
+    // Gemini's own JSON schema marks them nullable/not-required since they're
+    // shared across all 3 types, so it can legally omit them for any one.
+    const badIndex = questions.findIndex((q) => q.type === 'listening_choice')
+    const { choices: _choices, correctIndex: _correctIndex, ...rest } = questions[badIndex] as typeof questions[number] & { choices: unknown; correctIndex: unknown }
+    questions[badIndex] = rest as typeof questions[number]
+    generateContentMock.mockResolvedValue({ text: JSON.stringify({ questions }) })
+
+    await expect(generateQuizPart1(baseResult())).rejects.toThrow(
+      new RegExp(`Câu hỏi thứ ${badIndex + 1}.*listening_choice`)
+    )
   })
 
   it('throws when the response does not have exactly 15 questions', async () => {
