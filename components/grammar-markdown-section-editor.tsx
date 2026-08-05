@@ -66,7 +66,7 @@ export default function GrammarMarkdownSectionEditor({
   }, [editor, value])
 
   return (
-    <div className="rounded-md border bg-background p-4">
+    <div>
       {editor && !disabled && <GrammarMarkdownToolbar editor={editor} />}
       {editor && !disabled && <GrammarMarkdownTableToolbar editor={editor} />}
       <EditorContent

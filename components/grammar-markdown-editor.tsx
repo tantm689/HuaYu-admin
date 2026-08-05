@@ -54,14 +54,16 @@ export default function GrammarMarkdownEditor({
 
   if (sections.length === 0) {
     return (
-      <GrammarMarkdownSectionEditor
-        value=""
-        disabled={disabled}
-        onChange={(markdown) => {
-          lastEmitted.current = markdown
-          onChange(markdown)
-        }}
-      />
+      <div className="rounded-lg border bg-card p-4">
+        <GrammarMarkdownSectionEditor
+          value=""
+          disabled={disabled}
+          onChange={(markdown) => {
+            lastEmitted.current = markdown
+            onChange(markdown)
+          }}
+        />
+      </div>
     )
   }
 
@@ -71,9 +73,9 @@ export default function GrammarMarkdownEditor({
         <AccordionItem
           key={section.id}
           value={section.id}
-          className="rounded-md border bg-background px-3 not-last:border-b-0"
+          className="rounded-lg border bg-card px-4 not-last:border-b-0"
         >
-          <AccordionTrigger className="px-1 text-lg font-semibold">
+          <AccordionTrigger className="pr-10 text-lg font-semibold">
             {section.heading ? section.heading.replace(/^##\s*/, '') : 'Ghi chú chung'}
           </AccordionTrigger>
           <AccordionContent>
