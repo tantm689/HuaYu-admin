@@ -38,6 +38,8 @@ export async function requireAdmin(request: Request): Promise<RequireAdminResult
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // Distinct cookie name from the User app - see lib/supabase/browser.ts.
+      cookieOptions: { name: 'sb-admin-auth-token' },
       cookies: {
         getAll: () => parseCookieHeader(request.headers.get('cookie')),
         // Route handlers can't reliably write cookies back onto an arbitrary
